@@ -162,10 +162,6 @@ tail -f ~/.digits/logs/smartc.log
 
 MIT License
 
-## 🤝 Contributing
-
-Pull requests are welcome! Vui lòng tạo issue trước khi submit PR lớn.
-
 ---
 
 **Smart C AI** - *Trợ lý AI thông minh cho mọi nhà* 🏠
