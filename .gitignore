@@ -1,0 +1,37 @@
+# Logs
+logs/*.log
+*.log
+
+# Cache
+cache/*
+!cache/.gitkeep
+__pycache__/
+*.pyc
+*.pyo
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+._*
+
+# Config sensitive
+config/efuse.json
+
+# Python
+venv/
+.pytest_cache/
+
+# Packages
+*.tar.gz
+*.deb
+*.run

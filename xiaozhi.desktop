@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Xiaozhi AI
+Comment=Voice AI Assistant for Raspberry Pi
+Exec=/usr/local/bin/xiaozhi/xiaozhi
+Icon=/usr/local/bin/xiaozhi/assets/icon.png
+Terminal=false
+Categories=Audio;AudioVideo;Utility;
+StartupNotify=true
+Keywords=voice;ai;assistant;
