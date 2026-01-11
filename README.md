@@ -162,6 +162,12 @@ tail -f ~/.digits/logs/smartc.log
 ~/.digits/run.sh
 ```
 
+### Fix Autostart (nếu app không tự chạy khi boot)
+```bash
+bash ~/.digits/scripts/fix_autostart.sh
+sudo reboot
+```
+
 ## 🌐 Server
 
 - **Website:** https://xiaozhi-ai-iot.vn
