@@ -35,12 +35,27 @@ bash install_oslite.sh
 ```
 
 ### Installer Sẽ Tự Động:
-1. Cài đặt Desktop Environment (labwc Wayland)
-2. Cài đặt PyQt5 và các thư viện GUI
-3. Cài đặt Audio (PulseAudio, ALSA)
-4. Cài đặt NetworkManager cho WiFi
-5. Cấu hình Desktop Autologin
-6. Thiết lập Autostart cho app
+1. Cấu hình HDMI 1920x1080 Full HD
+2. Cài đặt Desktop Environment (labwc Wayland)
+3. Cài đặt PyQt5 và các thư viện GUI
+4. Cài đặt Audio (PulseAudio, ALSA)
+5. Cài đặt NetworkManager cho WiFi
+6. Cấu hình Desktop Autologin
+7. Thiết lập Autostart cho app
+
+### 🔄 Update Cho Pi Đang Chạy
+
+```bash
+cd ~/.digits
+bash update.sh
+```
+
+Script sẽ tự động:
+- Dừng app đang chạy
+- Backup config (config.json, efuse.json)
+- Pull code mới từ GitHub
+- Khôi phục config
+- Khởi động lại app
 
 ---
 
