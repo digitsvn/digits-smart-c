@@ -35,3 +35,4 @@ venv/
 *.tar.gz
 *.deb
 *.run
+._*
