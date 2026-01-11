@@ -22,6 +22,10 @@
 ### Cài Đặt Nhanh
 
 ```bash
+# Cài đặt Git (Ubuntu / Debian / Pi OS Lite)
+sudo apt update
+sudo apt install git -y
+
 # Clone repository
 git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
 
