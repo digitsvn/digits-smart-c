@@ -67,6 +67,56 @@ check_raspberry_pi() {
 }
 
 # =============================================================================
+# BƯỚC 0: Cấu hình HDMI Display (Full HD 1920x1080)
+# =============================================================================
+configure_display() {
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "BƯỚC 0: Cấu hình Display (Full HD 1920x1080)"
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Xác định file config.txt (Pi OS cũ vs mới)
+    if [ -f /boot/firmware/config.txt ]; then
+        CONFIG_FILE="/boot/firmware/config.txt"
+    elif [ -f /boot/config.txt ]; then
+        CONFIG_FILE="/boot/config.txt"
+    else
+        log_warn "Không tìm thấy config.txt, bỏ qua cấu hình display"
+        return 0
+    fi
+    
+    log "Sử dụng config file: $CONFIG_FILE"
+    
+    # Backup config file
+    sudo cp "$CONFIG_FILE" "${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+    
+    # Xóa các cấu hình HDMI cũ (nếu có)
+    sudo sed -i '/^hdmi_group=/d' "$CONFIG_FILE"
+    sudo sed -i '/^hdmi_mode=/d' "$CONFIG_FILE"
+    sudo sed -i '/^hdmi_force_hotplug=/d' "$CONFIG_FILE"
+    sudo sed -i '/^disable_overscan=/d' "$CONFIG_FILE"
+    sudo sed -i '/^hdmi_drive=/d' "$CONFIG_FILE"
+    
+    # Thêm cấu hình HDMI Full HD 1920x1080 60Hz
+    log "Cấu hình HDMI: 1920x1080 @ 60Hz"
+    
+    cat << 'HDMI_CONFIG' | sudo tee -a "$CONFIG_FILE" > /dev/null
+
+# ============================================
+# Smart C AI - HDMI Configuration (Full HD)
+# ============================================
+# hdmi_group=2 = DMT (monitor mode)
+# hdmi_mode=82 = 1920x1080 @ 60Hz
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=82
+hdmi_drive=2
+disable_overscan=1
+HDMI_CONFIG
+    
+    log "✓ HDMI đã cấu hình: 1920x1080 @ 60Hz"
+}
+
+# =============================================================================
 # BƯỚC 1: Cài đặt Desktop Environment (labwc/Wayland)
 # =============================================================================
 install_desktop() {
@@ -489,6 +539,7 @@ main() {
     log "Log file: $LOG_FILE"
     echo
     
+    configure_display
     install_desktop
     install_audio_network
     install_python_deps

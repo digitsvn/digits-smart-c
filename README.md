@@ -223,6 +223,13 @@ bash ~/.digits/scripts/fix_autostart.sh
 sudo reboot
 ```
 
+### Fix Display (độ phân giải màn hình hệ thống)
+```bash
+sudo bash ~/.digits/scripts/fix_display.sh
+# Chọn: 1) Full HD  2) HD  3) XGA  4) 7inch  5) Auto
+sudo reboot
+```
+
 ## 🌐 Server
 
 - **Website:** https://xiaozhi-ai-iot.vn
