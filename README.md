@@ -1,136 +1,171 @@
-# 💻 Bizino AI DEV - VS Code + Copilot Kit
+# 🤖 Smart C AI - Trợ lý AI cho Raspberry Pi
 
-> Software Company Agent System Kit for **VS Code** with **GitHub Copilot**
+> Ứng dụng trợ lý AI thông minh với voice interaction, wake word detection và WiFi provisioning cho Raspberry Pi OS Lite.
 
-## 📦 Quick Install
+## ✨ Tính Năng
+
+- 🎤 **Voice Interaction** - Tương tác bằng giọng nói với AI
+- 🔊 **Wake Word Detection** - Luôn lắng nghe từ khóa "Alexa", "Hey Lily", "Smart C"
+- 📡 **WiFi Provisioning** - Tự động bật Hotspot để cấu hình WiFi khi chưa có kết nối
+- 🖥️ **PyQt5 GUI** - Giao diện đồ họa hiện đại, hỗ trợ Wayland
+- 🔐 **Device Activation** - Kích hoạt thiết bị với server
+- 🎵 **Audio Config** - Cấu hình MIC và Speaker dễ dàng
+
+## 🚀 Cài Đặt Trên Raspberry Pi OS Lite
+
+### Yêu Cầu
+- Raspberry Pi 4/5 với Pi OS Lite (64-bit recommended)
+- USB Microphone
+- Speaker (3.5mm jack hoặc HDMI)
+- Kết nối Internet (Ethernet hoặc WiFi)
+
+### Cài Đặt Nhanh
 
 ```bash
-# From this directory
-./install.sh [target_project_directory]
+# Clone repository
+git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
 
-# Or from root
-../install.sh --vscode [target_project_directory]
+# Chạy installer
+cd ~/.digits
+bash install_oslite.sh
 ```
 
-## 📁 What Gets Installed
+### Installer Sẽ Tự Động:
+1. Cài đặt Desktop Environment (labwc Wayland)
+2. Cài đặt PyQt5 và các thư viện GUI
+3. Cài đặt Audio (PulseAudio, ALSA)
+4. Cài đặt NetworkManager cho WiFi
+5. Cấu hình Desktop Autologin
+6. Thiết lập Autostart cho app
+
+## 📱 Luồng Hoạt Động
 
 ```
-your-project/
-├── .github/
-│   ├── copilot-instructions.md  # Main Copilot configuration
-│   ├── prompts/                 # Reusable prompt templates
-│   │   ├── cook.prompt.md       # 🔥 Full auto pipeline
-│   │   ├── plan.prompt.md       # Create PRD
-│   │   ├── design.prompt.md     # System design
-│   │   ├── code.prompt.md       # Implementation
-│   │   ├── test.prompt.md       # Testing
-│   │   ├── review.prompt.md     # Code review
-│   │   ├── fix.prompt.md        # Bug fixing
-│   │   ├── git.prompt.md        # Git operations
-│   │   └── init.prompt.md       # Project initialization
-│   ├── roles/                   # AI role definitions
-│   │   ├── product-manager.md
-│   │   ├── architect.md
-│   │   ├── engineer.md
-│   │   ├── qa-engineer.md
-│   │   ├── code-reviewer.md
-│   │   ├── researcher.md
-│   │   └── devops.md
-│   ├── README.md
-│   └── GETTING_STARTED.md
-├── plans/                       # Project documentation
-│   ├── active/
-│   ├── reports/
-│   └── archive/
-└── docs/
-    └── templates/
+Boot Pi → Desktop GUI → Smart C AI khởi động
+                              ↓
+                     Kiểm tra WiFi
+                    /            \
+              Không có          Có WiFi
+                 ↓                 ↓
+         Bật Hotspot         First Run?
+        "SmartC-Setup"      /        \
+              ↓           Có         Không
+      Captive Portal       ↓           ↓
+     192.168.4.1     Settings ──→ Activated?
+              ↓                  /        \
+         Cấu hình WiFi       Chưa        Rồi
+                               ↓           ↓
+                          Activation → Chat Bot GUI
 ```
 
-## ⚙️ Setup
+### Chi tiết:
+1. **Boot** → Desktop (labwc Wayland) tự động khởi động
+2. **Smart C AI** tự động chạy
+3. **Không có WiFi** → Bật Hotspot `SmartC-Setup` (pass: `smartc123`)
+4. **Captive Portal** → User kết nối và cấu hình WiFi tại http://192.168.4.1
+5. **First-run** → Mở Settings cấu hình MIC/Speaker
+6. **Activation** → Xác thực với Server (QR Code + OTP)
+7. **Chat Bot** → Sẵn sàng tương tác, nói "Alexa" hoặc "Hey Lily"
 
-### 1. Enable Custom Instructions
+## 🎤 Wake Words
 
-1. Open VS Code Settings (`Cmd+,` or `Ctrl+,`)
-2. Search for `github.copilot.chat.codeGeneration.useInstructionFiles`
-3. Set to `true`
+Ứng dụng sử dụng [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) để phát hiện từ khóa:
 
-### 2. Verify Installation
+| Từ khóa | Trigger |
+|---------|---------|
+| `xiaozhi` | @xiaozhi |
+| `lily` | @lily |
+| `alexa` | @alexa |
+| `hey lily` | @hey_lily |
+| `smart c` | @smartc |
+| `sophia` | @sophia |
 
-The `.github/copilot-instructions.md` file will be automatically loaded by Copilot Chat.
-
-## 🚀 Usage
-
-### Using Prompt Files in Copilot Chat
-
-Reference prompt files using `#file:` syntax:
-
-```
-@workspace #file:.github/prompts/cook.prompt.md Build an e-commerce app with user auth
-```
-
-| Prompt File | Description |
-|-------------|-------------|
-| `cook.prompt.md` | 🔥 Full auto pipeline - from idea to MVP |
-| `plan.prompt.md` | Create PRD for a feature |
-| `design.prompt.md` | Create system design from PRD |
-| `code.prompt.md` | Implement code from design |
-| `test.prompt.md` | Run tests and generate reports |
-| `review.prompt.md` | Code review and quality check |
-| `fix.prompt.md` | Debug and fix issues |
-| `git.prompt.md` | Git operations (commit, push, PR) |
-
-### Example Commands
+## 📁 Cấu Trúc Thư Mục
 
 ```
-# Full development pipeline
-@workspace #file:.github/prompts/cook.prompt.md Build a todo app with tags and priorities
-
-# Plan a feature
-@workspace #file:.github/prompts/plan.prompt.md User authentication with social login
-
-# Fix a bug
-@workspace #file:.github/prompts/fix.prompt.md The form validation is not working
-
-# Code review
-@workspace #file:.github/prompts/review.prompt.md Review the authentication module
+~/.digits/
+├── main.py                 # Entry point
+├── run.sh                  # Launcher script
+├── install_oslite.sh       # OS Lite installer
+├── config/
+│   └── config.json         # Cấu hình app
+├── models/
+│   ├── encoder.onnx        # Wake word model
+│   ├── decoder.onnx
+│   ├── joiner.onnx
+│   └── keywords.txt        # Danh sách wake words
+├── src/
+│   ├── core/
+│   │   └── startup_flow.py # Quản lý luồng khởi động
+│   ├── network/
+│   │   ├── wifi_manager.py # Quản lý WiFi/Hotspot
+│   │   └── wifi_captive_portal.py
+│   ├── views/
+│   │   ├── settings/       # Settings UI
+│   │   └── activation/     # Activation UI
+│   └── ...
+└── logs/
+    └── smartc.log          # Log files
 ```
 
-### Using Roles
+## ⚙️ Cấu Hình
 
-You can also reference role files for persona-based responses:
+### WiFi Hotspot
+- **SSID:** `SmartC-Setup`
+- **Password:** `smartc123`
+- **IP:** `192.168.4.1`
 
+### Audio Devices
+Cấu hình trong Settings hoặc chỉnh `config/config.json`:
+```json
+{
+  "AUDIO_DEVICES": {
+    "input_device_id": 2,
+    "input_device_name": "USB PnP Sound Device",
+    "output_device_id": 1,
+    "output_device_name": "bcm2835 Headphones",
+    "input_sample_rate": 44100,
+    "output_sample_rate": 44100
+  }
+}
 ```
-@workspace #file:.github/roles/architect.md Design the database schema for user management
+
+## 🔧 Troubleshooting
+
+### Kiểm tra Audio & WiFi
+```bash
+python3 ~/.digits/scripts/check_audio_wifi.py
 ```
 
-## 🎭 Roles
+### Kiểm tra nhanh
+```bash
+python3 ~/.digits/scripts/quick_test.py
+```
 
-The kit includes 7 specialized AI roles:
+### Xem Logs
+```bash
+tail -f ~/.digits/logs/smartc.log
+```
 
-1. **Product Manager** - Requirements analysis, PRD creation
-2. **Architect** - System design, technical decisions
-3. **Engineer** - Code implementation
-4. **QA Engineer** - Testing, quality assurance
-5. **Code Reviewer** - Code review, best practices
-6. **Researcher** - Technical research, documentation
-7. **DevOps** - Deployment, infrastructure
+### Chạy thủ công
+```bash
+~/.digits/run.sh
+```
 
-## 📝 Custom Instructions
+## 🌐 Server
 
-The `copilot-instructions.md` file contains:
-- System identity and behavior rules
-- Code generation preferences
-- Output format specifications
-- Project-specific conventions
+- **Website:** https://xiaozhi-ai-iot.vn
+- **WebSocket:** wss://xiaozhi-ai-iot.vn/api/v1/ws
+- **OTA:** https://xiaozhi-ai-iot.vn/api/v1/ota
 
-Edit this file to customize Copilot's behavior for your project.
+## 📄 License
 
-## 📚 Documentation
+MIT License
 
-- [GETTING_STARTED.md](./GETTING_STARTED.md) - Quick start guide
-- [prompts/](./prompts/) - All available prompt templates
-- [roles/](./roles/) - Role specifications
+## 🤝 Contributing
+
+Pull requests are welcome! Vui lòng tạo issue trước khi submit PR lớn.
 
 ---
 
-**Bizino AI DEV** - *Transforming Ideas into Software Automatically*
+**Smart C AI** - *Trợ lý AI thông minh cho mọi nhà* 🏠
