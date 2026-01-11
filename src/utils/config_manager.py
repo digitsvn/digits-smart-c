@@ -145,7 +145,7 @@ class ConfigManager:
 
     def _load_config(self) -> Dict[str, Any]:
         """
-        Tải tệp cấu hình, nếu không tồn tại thì tạo.
+        Tải tệp cấu hình, nếu không tồn tại thì tạo từ template.
         """
         try:
             # Trước tiên thử sử dụng resource_finder để tìm tệp cấu hình
@@ -162,10 +162,19 @@ class ConfigManager:
                 config = json.loads(self.config_file.read_text(encoding="utf-8"))
                 return self._merge_configs(self.DEFAULT_CONFIG, config)
             else:
-                # Tạo tệp cấu hình mặc định
-                logger.info("Tệp cấu hình không tồn tại, tạo cấu hình mặc định")
-                self._save_config(self.DEFAULT_CONFIG)
-                return self.DEFAULT_CONFIG.copy()
+                # Thử copy từ config.example.json nếu tồn tại
+                example_config = self.config_dir / "config.example.json"
+                if example_config.exists():
+                    logger.info("Tạo config.json từ template config.example.json")
+                    import shutil
+                    shutil.copy(example_config, self.config_file)
+                    config = json.loads(self.config_file.read_text(encoding="utf-8"))
+                    return self._merge_configs(self.DEFAULT_CONFIG, config)
+                else:
+                    # Tạo tệp cấu hình mặc định
+                    logger.info("Tệp cấu hình không tồn tại, tạo cấu hình mặc định")
+                    self._save_config(self.DEFAULT_CONFIG)
+                    return self.DEFAULT_CONFIG.copy()
 
         except Exception as e:
             logger.error(f"Lỗi tải cấu hình: {e}")

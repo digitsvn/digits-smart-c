@@ -1,0 +1,88 @@
+{
+  "SYSTEM_OPTIONS": {
+    "CLIENT_ID": null,
+    "DEVICE_ID": null,
+    "LANGUAGE": "vi-VN",
+    "NETWORK": {
+      "OTA_VERSION_URL": "https://xiaozhi-ai-iot.vn/api/v1/ota",
+      "WEBSOCKET_URL": "wss://xiaozhi-ai-iot.vn/api/v1/ws",
+      "WEBSOCKET_ACCESS_TOKEN": null,
+      "MQTT_INFO": null,
+      "ACTIVATION_VERSION": "v2",
+      "AUTHORIZATION_URL": "https://xiaozhi-ai-iot.vn/"
+    },
+    "WINDOW_SIZE_MODE": "screen_75"
+  },
+  "WAKE_WORD_OPTIONS": {
+    "USE_WAKE_WORD": true,
+    "MODEL_PATH": "models",
+    "NUM_THREADS": 4,
+    "PROVIDER": "cpu",
+    "MAX_ACTIVE_PATHS": 2,
+    "KEYWORDS_SCORE": 1.8,
+    "KEYWORDS_THRESHOLD": 0.2,
+    "NUM_TRAILING_BLANKS": 1
+  },
+  "CAMERA": {
+    "camera_index": 0,
+    "frame_width": 640,
+    "frame_height": 480,
+    "fps": 30,
+    "VIDEO_SOURCE": "none",
+    "VIDEO_FILE_PATH": "",
+    "VIDEO_LOOP": true,
+    "VIDEO_FPS": 24,
+    "Local_VL_url": "",
+    "VLapi_key": "",
+    "models": "glm-4v-plus"
+  },
+  "SHORTCUTS": {
+    "ENABLED": true,
+    "MANUAL_PRESS": {
+      "modifier": "ctrl",
+      "key": "j",
+      "description": "Giữ để nói"
+    },
+    "AUTO_TOGGLE": {
+      "modifier": "ctrl",
+      "key": "k",
+      "description": "Hội thoại tự động"
+    },
+    "ABORT": {
+      "modifier": "ctrl",
+      "key": "q",
+      "description": "Ngắt hội thoại"
+    },
+    "MODE_TOGGLE": {
+      "modifier": "ctrl",
+      "key": "m",
+      "description": "Chuyển chế độ"
+    },
+    "WINDOW_TOGGLE": {
+      "modifier": "ctrl",
+      "key": "w",
+      "description": "Hiện/Ẩn cửa sổ"
+    }
+  },
+  "AEC_OPTIONS": {
+    "ENABLED": true,
+    "BUFFER_MAX_LENGTH": 200,
+    "FRAME_DELAY": 3,
+    "FILTER_LENGTH_RATIO": 0.4,
+    "ENABLE_PREPROCESS": true
+  },
+  "AUDIO_DEVICES": {
+    "input_device_id": null,
+    "input_device_name": null,
+    "output_device_id": null,
+    "output_device_name": null,
+    "input_sample_rate": 44100,
+    "output_sample_rate": 44100
+  },
+  "VIDEO_SOURCE": "none",
+  "WINDOW_SIZE_MODE": "default",
+  "EMOTION_DISPLAY": {
+    "DEFAULT_EMOTION": "😊",
+    "USE_SYSTEM_EMOJI": true
+  }
+}

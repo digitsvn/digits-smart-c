@@ -200,7 +200,7 @@ install_app() {
             cd "$INSTALL_DIR"
             git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || true
         else
-            git clone https://github.com/your-repo/smartc-ai.git "$INSTALL_DIR" || {
+        git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git "$INSTALL_DIR" || {
                 log_error "Không thể clone repo. Vui lòng copy files thủ công."
                 return 1
             }

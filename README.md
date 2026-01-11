@@ -92,7 +92,8 @@ Boot Pi → Desktop GUI → Smart C AI khởi động
 ├── run.sh                  # Launcher script
 ├── install_oslite.sh       # OS Lite installer
 ├── config/
-│   └── config.json         # Cấu hình app
+│   ├── config.json         # Cấu hình app (tự động tạo)
+│   └── config.example.json # Template cấu hình
 ├── models/
 │   ├── encoder.onnx        # Wake word model
 │   ├── decoder.onnx
@@ -120,6 +121,8 @@ Boot Pi → Desktop GUI → Smart C AI khởi động
 - **IP:** `192.168.4.1`
 
 ### Audio Devices
+Lần đầu chạy, hệ thống tự động tạo `config/config.json` từ template.
+
 Cấu hình trong Settings hoặc chỉnh `config/config.json`:
 ```json
 {
@@ -133,6 +136,9 @@ Cấu hình trong Settings hoặc chỉnh `config/config.json`:
   }
 }
 ```
+
+> ⚠️ **Lưu ý:** File `config/config.json` chứa tokens xác thực và không được commit vào Git.  
+> Sử dụng `config/config.example.json` làm template.
 
 ## 🔧 Troubleshooting
 

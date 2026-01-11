@@ -24,8 +24,10 @@ dist/
 .DS_Store
 ._*
 
-# Config sensitive
+# Config sensitive - KHÔNG commit file chứa tokens/credentials
+config/config.json
 config/efuse.json
+config/.first_run_done
 
 # Python
 venv/

@@ -227,8 +227,9 @@ class WiFiManager:
             # Yêu cầu quét lại
             self._run_nmcli(["device", "wifi", "rescan"], timeout=15)
             
-            # Đợi quét hoàn tất
-            asyncio.get_event_loop().run_until_complete(asyncio.sleep(2))
+            # Đợi quét hoàn tất (sử dụng time.sleep thay vì asyncio để tránh event loop conflict)
+            import time
+            time.sleep(2)
         except Exception:
             pass  # Bỏ qua lỗi rescan
         
