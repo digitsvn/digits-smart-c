@@ -42,6 +42,42 @@ bash install_oslite.sh
 5. Cấu hình Desktop Autologin
 6. Thiết lập Autostart cho app
 
+---
+
+### 🚀 Cài Đặt Tối Giản (Khuyến Nghị cho Pi OS Lite)
+
+**Dành cho ai muốn chạy nhẹ nhất - KHÔNG cần Desktop GUI:**
+
+```bash
+# Clone repository
+git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
+
+# Chạy minimal installer
+cd ~/.digits
+bash install_minimal.sh
+```
+
+**Ưu điểm của bản Minimal:**
+- ⚡ **Nhẹ hơn 80%** - Không cài Desktop, PyQt5, PulseAudio
+- 🔧 **systemd service** - Tự động chạy khi boot, tự restart nếu crash
+- 💾 **RAM ~100MB** thay vì ~400MB với GUI
+- 🎯 **Tập trung AI Chatbot** - Chỉ cài những gì cần thiết
+
+**Quản lý service:**
+```bash
+# Khởi động
+sudo systemctl start smartc
+
+# Xem trạng thái
+sudo systemctl status smartc
+
+# Xem logs
+tail -f ~/.digits/logs/smartc.log
+
+# Dừng
+sudo systemctl stop smartc
+```
+
 ## 📱 Luồng Hoạt Động
 
 ```
