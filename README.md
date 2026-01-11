@@ -176,6 +176,25 @@ Cấu hình trong Settings hoặc chỉnh `config/config.json`:
 > ⚠️ **Lưu ý:** File `config/config.json` chứa tokens xác thực và không được commit vào Git.  
 > Sử dụng `config/config.example.json` làm template.
 
+### Window Size (Độ phân giải)
+Cấu hình trong `config/config.json`:
+```json
+{
+  "WINDOW_SIZE_MODE": "fullhd"
+}
+```
+
+**Các chế độ hỗ trợ:**
+
+| Mode | Kích thước | Mô tả |
+|------|------------|-------|
+| `fullhd` | 1920x1080 | Full HD (khuyến nghị) |
+| `hd` | 1280x720 | HD |
+| `screen_75` | 75% màn hình | 75% kích thước màn hình |
+| `screen_100` | 100% | Toàn màn hình |
+| `vertical_916` | 9:16 | Tỷ lệ dọc (cho video dọc) |
+| `default` | Auto | Tự động: Full HD nếu màn hình đủ lớn |
+
 ## 🔧 Troubleshooting
 
 ### Kiểm tra Audio & WiFi

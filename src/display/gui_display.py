@@ -499,6 +499,14 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
     def _calculate_window_size(self) -> tuple:
         """
         Tính kích thước cửa sổ dựa trên cấu hình, trả về (rộng, cao, có toàn màn hình hay không)
+        
+        Các chế độ hỗ trợ:
+        - default: 50% màn hình
+        - fullhd: 1920x1080 (Full HD)
+        - hd: 1280x720 (HD)
+        - vertical_916: tỷ lệ 9:16 dọc
+        - screen_75: 75% màn hình
+        - screen_100: toàn màn hình
         """
         try:
             from src.utils.config_manager import ConfigManager
@@ -519,11 +527,27 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             screen_height = screen_rect.height()
 
             # Tính kích thước cửa sổ dựa trên chế độ
-            if window_size_mode == "default":
-                # Mặc định sử dụng 50%
-                width = int(screen_width * 0.5)
-                height = int(screen_height * 0.5)
-                is_fullscreen = False
+            if window_size_mode == "fullhd":
+                # Full HD: 1920x1080, nếu màn hình nhỏ hơn thì dùng toàn màn hình
+                if screen_width >= 1920 and screen_height >= 1080:
+                    width = 1920
+                    height = 1080
+                    is_fullscreen = False
+                else:
+                    # Màn hình nhỏ hơn Full HD => fullscreen
+                    width = screen_width
+                    height = screen_height
+                    is_fullscreen = True
+            elif window_size_mode == "hd":
+                # HD: 1280x720
+                if screen_width >= 1280 and screen_height >= 720:
+                    width = 1280
+                    height = 720
+                    is_fullscreen = False
+                else:
+                    width = screen_width
+                    height = screen_height
+                    is_fullscreen = True
             elif window_size_mode == "vertical_916":
                 # Tỷ lệ 9:16 dọc (cho video dọc)
                 # Dùng 60% chiều cao màn hình
@@ -539,22 +563,35 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
                 width = screen_width
                 height = screen_height
                 is_fullscreen = True
+            elif window_size_mode == "default":
+                # Mặc định: chọn theo kích thước màn hình
+                # Nếu màn hình >= Full HD thì dùng Full HD, không thì 75%
+                if screen_width >= 1920 and screen_height >= 1080:
+                    width = 1920
+                    height = 1080
+                    is_fullscreen = False
+                else:
+                    width = int(screen_width * 0.75)
+                    height = int(screen_height * 0.75)
+                    is_fullscreen = False
             else:
-                # Chế độ không xác định sử dụng 50%
-                width = int(screen_width * 0.5)
-                height = int(screen_height * 0.5)
+                # Chế độ không xác định sử dụng 75%
+                width = int(screen_width * 0.75)
+                height = int(screen_height * 0.75)
                 is_fullscreen = False
 
             return ((width, height), is_fullscreen)
 
         except Exception as e:
             self.logger.error(f"Tính kích thước cửa sổ thất bại: {e}", exc_info=True)
-            # Khi lỗi, trả về 50% màn hình
+            # Khi lỗi, trả về Full HD hoặc 75% màn hình
             try:
                 desktop = QApplication.desktop()
                 screen_rect = desktop.availableGeometry()
+                if screen_rect.width() >= 1920 and screen_rect.height() >= 1080:
+                    return ((1920, 1080), False)
                 return (
-                    (int(screen_rect.width() * 0.5), int(screen_rect.height() * 0.5)),
+                    (int(screen_rect.width() * 0.75), int(screen_rect.height() * 0.75)),
                     False,
                 )
             except Exception:
