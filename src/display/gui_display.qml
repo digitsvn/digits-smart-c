@@ -325,65 +325,75 @@ Rectangle {
             }
         }
 
-        // Chat Panel - Floating on RIGHT side, glassmorphism overlay
-        Rectangle {
-            id: chatPanel
+        // Chat History Area - Both bubbles on RIGHT side
+        Item {
+            id: chatArea
             anchors.top: titleBar.bottom
-            anchors.topMargin: 15
             anchors.bottom: bottomBar.top
-            anchors.bottomMargin: 15
+            anchors.left: parent.left
             anchors.right: parent.right
-            anchors.rightMargin: 15
-            width: Math.min(parent.width * 0.4, 380)  // 40% width, max 380px
-            radius: 20
-            color: "#80000000"  // Semi-transparent dark
-            border.color: "#30ffffff"
-            border.width: 1
-            
-            // Glassmorphism blur effect simulation
-            layer.enabled: true
-            layer.effect: DropShadow {
-                transparentBorder: true
-                horizontalOffset: 0
-                verticalOffset: 8
-                radius: 20
-                samples: 25
-                color: "#50000000"
-            }
-            
-            // Chat Header
-            Rectangle {
-                id: chatHeader
-                anchors.top: parent.top
-                anchors.left: parent.left
+
+            Column {
+                anchors.bottom: parent.bottom
                 anchors.right: parent.right
-                height: 50
-                radius: 20
-                color: "transparent"
-                
-                // Only round top corners
+                anchors.rightMargin: 20
+                anchors.bottomMargin: 20
+                width: Math.min(parent.width * 0.5, 450)  // Max 50% width or 450px
+                spacing: 12
+
+                // USER MESSAGE BUBBLE - Right aligned, gradient
                 Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
+                    id: userBubble
                     anchors.right: parent.right
-                    height: 25
-                    color: "transparent"
-                }
-                
-                Row {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 15
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 10
+                    visible: displayModel && displayModel.userText && displayModel.userText.length > 0
+                    width: Math.min(Math.max(userTxt.implicitWidth + 36, 80), parent.width)
+                    height: userTxt.implicitHeight + 20
+                    radius: 18
                     
-                    // AI Avatar
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#667eea" }
+                        GradientStop { position: 1.0; color: "#764ba2" }
+                    }
+                    
+                    layer.enabled: true
+                    layer.effect: DropShadow {
+                        transparentBorder: true
+                        horizontalOffset: 0
+                        verticalOffset: 4
+                        radius: 10
+                        samples: 20
+                        color: "#40667eea"
+                    }
+
+                    Text {
+                        id: userTxt
+                        anchors.centerIn: parent
+                        width: parent.width - 28
+                        text: displayModel ? displayModel.userText : ""
+                        color: "white"
+                        font.pixelSize: 14
+                        font.weight: Font.Medium
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                // AI MESSAGE BUBBLE - Also right aligned, dark glassmorphism
+                Row {
+                    anchors.right: parent.right
+                    visible: displayModel && displayModel.ttsText && displayModel.ttsText !== "Đang chờ" && displayModel.ttsText.length > 0
+                    spacing: 8
+                    layoutDirection: Qt.RightToLeft  // Avatar on right
+
+                    // Avatar on right side of bubble
                     Rectangle {
+                        id: aiAvatar
                         width: 32
                         height: 32
                         radius: 16
+                        anchors.bottom: parent.bottom
                         gradient: Gradient {
-                            GradientStop { position: 0.0; color: "#667eea" }
-                            GradientStop { position: 1.0; color: "#764ba2" }
+                            GradientStop { position: 0.0; color: "#11998e" }
+                            GradientStop { position: 1.0; color: "#38ef7d" }
                         }
                         Text {
                             anchors.centerIn: parent
@@ -391,133 +401,34 @@ Rectangle {
                             font.pixelSize: 16
                         }
                     }
-                    
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
+
+                    Rectangle {
+                        id: aiBubble
+                        width: Math.min(Math.max(aiTxt.implicitWidth + 36, 80), chatArea.width * 0.45)
+                        height: aiTxt.implicitHeight + 20
+                        radius: 18
+                        color: "#CC1e1e2e"
+                        border.color: "#40ffffff"
+                        border.width: 1
+                        
+                        layer.enabled: true
+                        layer.effect: DropShadow {
+                            transparentBorder: true
+                            horizontalOffset: 0
+                            verticalOffset: 4
+                            radius: 10
+                            samples: 20
+                            color: "#30000000"
+                        }
+
                         Text {
-                            text: "Smart C"
-                            color: "white"
+                            id: aiTxt
+                            anchors.centerIn: parent
+                            width: parent.width - 28
+                            text: displayModel ? displayModel.ttsText : ""
+                            color: "#e8e8e8"
                             font.pixelSize: 14
-                            font.bold: true
-                        }
-                        Text {
-                            text: displayModel && displayModel.statusText.indexOf("Đã kết nối") !== -1 ? "● Online" : "○ Offline"
-                            color: displayModel && displayModel.statusText.indexOf("Đã kết nối") !== -1 ? "#38ef7d" : "#888"
-                            font.pixelSize: 11
-                        }
-                    }
-                }
-            }
-            
-            // Separator line
-            Rectangle {
-                id: separator
-                anchors.top: chatHeader.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: 15
-                anchors.rightMargin: 15
-                height: 1
-                color: "#30ffffff"
-            }
-            
-            // Chat Messages Area
-            Item {
-                id: messagesArea
-                anchors.top: separator.bottom
-                anchors.topMargin: 10
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 15
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: 15
-                anchors.rightMargin: 15
-                clip: true
-                
-                Column {
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    spacing: 12
-                    
-                    // USER MESSAGE BUBBLE (Right aligned, blue/purple gradient)
-                    Item {
-                        width: parent.width
-                        height: userBubble.height + 5
-                        visible: displayModel && displayModel.userText && displayModel.userText.length > 0
-                        
-                        Rectangle {
-                            id: userBubble
-                            anchors.right: parent.right
-                            width: Math.min(Math.max(userTxt.implicitWidth + 28, 60), parent.width * 0.9)
-                            height: userTxt.implicitHeight + 18
-                            radius: 16
-                            
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop { position: 0.0; color: "#667eea" }
-                                GradientStop { position: 1.0; color: "#764ba2" }
-                            }
-                            
-                            Text {
-                                id: userTxt
-                                anchors.centerIn: parent
-                                width: parent.width - 20
-                                text: displayModel ? displayModel.userText : ""
-                                color: "white"
-                                font.pixelSize: 13
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                    }
-                    
-                    // AI MESSAGE BUBBLE (Left aligned, dark semi-transparent)
-                    Item {
-                        width: parent.width
-                        height: aiBubbleRow.height + 5
-                        visible: displayModel && displayModel.ttsText && displayModel.ttsText !== "Đang chờ" && displayModel.ttsText.length > 0
-                        
-                        Row {
-                            id: aiBubbleRow
-                            anchors.left: parent.left
-                            spacing: 8
-                            
-                            // Mini avatar
-                            Rectangle {
-                                width: 28
-                                height: 28
-                                radius: 14
-                                anchors.bottom: parent.bottom
-                                gradient: Gradient {
-                                    GradientStop { position: 0.0; color: "#11998e" }
-                                    GradientStop { position: 1.0; color: "#38ef7d" }
-                                }
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "🤖"
-                                    font.pixelSize: 12
-                                }
-                            }
-                            
-                            Rectangle {
-                                id: aiBubble
-                                width: Math.min(Math.max(aiTxt.implicitWidth + 28, 60), messagesArea.width * 0.8)
-                                height: aiTxt.implicitHeight + 18
-                                radius: 16
-                                color: "#40ffffff"  // Light semi-transparent
-                                border.color: "#30ffffff"
-                                border.width: 1
-                                
-                                Text {
-                                    id: aiTxt
-                                    anchors.centerIn: parent
-                                    width: parent.width - 20
-                                    text: displayModel ? displayModel.ttsText : ""
-                                    color: "white"
-                                    font.pixelSize: 13
-                                    wrapMode: Text.WordWrap
-                                }
-                            }
+                            wrapMode: Text.WordWrap
                         }
                     }
                 }
