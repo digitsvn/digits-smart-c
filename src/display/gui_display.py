@@ -302,6 +302,21 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             self.logger.error(f"Lấy YouTube URL thất bại: {e}")
             return ""
 
+    def reload_video_from_config(self) -> None:
+        """Reload video từ config - được gọi từ Web Dashboard."""
+        self.logger.info("Reloading video from config...")
+        try:
+            # Reload config trước
+            from src.utils.config_manager import ConfigManager
+            cfg = ConfigManager.get_instance()
+            cfg.reload_config()
+            
+            # Sau đó reload video
+            self._start_video_from_config()
+            self.logger.info("Video reloaded successfully")
+        except Exception as e:
+            self.logger.error(f"Reload video failed: {e}")
+
     # =========================================================================
     # Quy trình khởi động
     # =========================================================================

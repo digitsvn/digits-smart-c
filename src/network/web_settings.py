@@ -282,19 +282,18 @@ DASHBOARD_HTML = """
                 </label>
             </div>
             <div class="form-group">
-                <label>Từ khóa:</label>
-                <select id="wakeWordKeyword">
-                    <option value="xiao_zhi">小智 (Xiaozhi)</option>
-                    <option value="hey_siri">Hey Siri</option>
-                    <option value="alexa">Alexa</option>
-                    <option value="ok_google">OK Google</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Độ nhạy: <span id="sensitivityValue">0.5</span></label>
-                <input type="range" id="wakeWordSensitivity" min="0.1" max="1.0" step="0.1" value="0.5"
+                <label>Ngưỡng phát hiện: <span id="sensitivityValue">0.25</span></label>
+                <input type="range" id="wakeWordSensitivity" min="0.1" max="0.5" step="0.05" value="0.25"
                     oninput="document.getElementById('sensitivityValue').textContent=this.value"
                     style="width:100%; accent-color:#667eea;">
+                <small style="color: #888;">Thấp = nhạy hơn, Cao = chính xác hơn</small>
+            </div>
+            <div class="form-group">
+                <label>Từ khóa:</label>
+                <div style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 13px;">
+                    Mặc định: 小智 (Xiaozhi)<br>
+                    <small style="color: #888;">Chỉnh sửa: models/keywords.txt</small>
+                </div>
             </div>
             <button class="btn btn-primary" onclick="saveWakeWord()">💾 Lưu</button>
             <div id="wakeWordStatus"></div>
@@ -599,21 +598,19 @@ DASHBOARD_HTML = """
                 const resp = await fetch('/api/wakeword');
                 const data = await resp.json();
                 document.getElementById('wakeWordEnabled').checked = data.enabled;
-                document.getElementById('wakeWordKeyword').value = data.keyword || 'xiao_zhi';
-                document.getElementById('wakeWordSensitivity').value = data.sensitivity || 0.5;
-                document.getElementById('sensitivityValue').textContent = data.sensitivity || 0.5;
+                document.getElementById('wakeWordSensitivity').value = data.threshold || 0.25;
+                document.getElementById('sensitivityValue').textContent = data.threshold || 0.25;
             } catch (e) {}
         }
         
         async function saveWakeWord() {
             const enabled = document.getElementById('wakeWordEnabled').checked;
-            const keyword = document.getElementById('wakeWordKeyword').value;
             const sensitivity = parseFloat(document.getElementById('wakeWordSensitivity').value);
             try {
                 const resp = await fetch('/api/wakeword', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({enabled, keyword, sensitivity})
+                    body: JSON.stringify({enabled, sensitivity})
                 });
                 const data = await resp.json();
                 showStatus('wakeWordStatus', data.success ? 'success' : 'error', data.message);
@@ -991,13 +988,13 @@ class WebSettingsServer:
     async def _handle_wakeword_get(self, request):
         """Lấy cài đặt wake word."""
         try:
-            enabled = self.config.get_config("WAKE_WORD.ENABLED", True)
-            keyword = self.config.get_config("WAKE_WORD.KEYWORD", "xiao_zhi")
-            sensitivity = self.config.get_config("WAKE_WORD.SENSITIVITY", 0.5)
+            enabled = self.config.get_config("WAKE_WORD_OPTIONS.USE_WAKE_WORD", False)
+            threshold = self.config.get_config("WAKE_WORD_OPTIONS.KEYWORDS_THRESHOLD", 0.25)
+            score = self.config.get_config("WAKE_WORD_OPTIONS.KEYWORDS_SCORE", 2.0)
             return web.json_response({
                 "enabled": enabled,
-                "keyword": keyword,
-                "sensitivity": sensitivity,
+                "threshold": threshold,
+                "score": score,
             })
         except Exception as e:
             return web.json_response({"error": str(e)})
@@ -1006,10 +1003,13 @@ class WebSettingsServer:
         """Lưu cài đặt wake word."""
         try:
             data = await request.json()
-            self.config.update_config("WAKE_WORD.ENABLED", data.get("enabled", True))
-            self.config.update_config("WAKE_WORD.KEYWORD", data.get("keyword", "xiao_zhi"))
-            self.config.update_config("WAKE_WORD.SENSITIVITY", data.get("sensitivity", 0.5))
-            return web.json_response({"success": True, "message": "Đã lưu! Cần restart app."})
+            enabled = data.get("enabled", False)
+            threshold = float(data.get("sensitivity", 0.25))
+            
+            self.config.update_config("WAKE_WORD_OPTIONS.USE_WAKE_WORD", enabled)
+            self.config.update_config("WAKE_WORD_OPTIONS.KEYWORDS_THRESHOLD", threshold)
+            
+            return web.json_response({"success": True, "message": "Đã lưu! Restart app để áp dụng."})
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
     
