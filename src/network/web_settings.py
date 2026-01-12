@@ -1094,15 +1094,28 @@ class WebSettingsServer:
             if not ssid:
                 return web.json_response({"success": False, "message": "Thiếu tên mạng"})
             
-            from src.network.wifi_manager import WiFiManager
-            wifi = WiFiManager()
-            success = wifi.connect(ssid, password)
+            logger.info(f"Connecting to WiFi: {ssid}")
             
-            if success:
-                return web.json_response({"success": True, "message": f"Đã kết nối {ssid}!"})
+            # Dùng nmcli để kết nối
+            if password:
+                cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid, "password", password]
             else:
-                return web.json_response({"success": False, "message": "Kết nối thất bại"})
+                cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                logger.info(f"Connected to WiFi: {ssid}")
+                return web.json_response({"success": True, "message": f"✅ Đã kết nối {ssid}!"})
+            else:
+                error = result.stderr or result.stdout or "Unknown error"
+                logger.error(f"WiFi connect failed: {error}")
+                return web.json_response({"success": False, "message": f"❌ {error[:80]}"})
+                
+        except subprocess.TimeoutExpired:
+            return web.json_response({"success": False, "message": "⏱️ Timeout"})
         except Exception as e:
+            logger.error(f"WiFi connect error: {e}")
             return web.json_response({"success": False, "message": str(e)})
     
     # ========== SYSTEM ==========
