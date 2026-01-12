@@ -325,7 +325,7 @@ Rectangle {
             }
         }
 
-        // Chat History Area - Both bubbles on RIGHT side
+        // Chat History Area
         Item {
             id: chatArea
             anchors.top: titleBar.bottom
@@ -335,100 +335,155 @@ Rectangle {
 
             Column {
                 anchors.bottom: parent.bottom
+                anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.rightMargin: 20
-                anchors.bottomMargin: 20
-                width: Math.min(parent.width * 0.5, 450)  // Max 50% width or 450px
-                spacing: 12
+                anchors.margins: 20
+                spacing: 15
 
-                // USER MESSAGE BUBBLE - Right aligned, gradient
-                Rectangle {
-                    id: userBubble
-                    anchors.right: parent.right
+                // USER MESSAGE BUBBLE (Right) - Modern glassmorphism style
+                Item {
+                    width: parent.width
+                    height: userBubble.height + 10
                     visible: displayModel && displayModel.userText && displayModel.userText.length > 0
-                    width: Math.min(Math.max(userTxt.implicitWidth + 36, 80), parent.width)
-                    height: userTxt.implicitHeight + 20
-                    radius: 18
-                    
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: "#667eea" }
-                        GradientStop { position: 1.0; color: "#764ba2" }
-                    }
-                    
-                    layer.enabled: true
-                    layer.effect: DropShadow {
-                        transparentBorder: true
-                        horizontalOffset: 0
-                        verticalOffset: 4
-                        radius: 10
-                        samples: 20
-                        color: "#40667eea"
-                    }
 
-                    Text {
-                        id: userTxt
-                        anchors.centerIn: parent
-                        width: parent.width - 28
-                        text: displayModel ? displayModel.userText : ""
-                        color: "white"
-                        font.pixelSize: 14
-                        font.weight: Font.Medium
-                        wrapMode: Text.WordWrap
+                    Rectangle {
+                        id: userBubble
+                        anchors.right: parent.right
+                        width: Math.min(Math.max(userTxt.implicitWidth + 40, 80), parent.width * 0.8)
+                        height: userTxt.implicitHeight + 24
+                        radius: 20
+                        
+                        // Modern gradient
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: "#667eea" }
+                            GradientStop { position: 1.0; color: "#764ba2" }
+                        }
+                        
+                        // Soft shadow
+                        layer.enabled: true
+                        layer.effect: DropShadow {
+                            transparentBorder: true
+                            horizontalOffset: 0
+                            verticalOffset: 4
+                            radius: 12
+                            samples: 25
+                            color: "#40667eea"
+                        }
+
+                        Text {
+                            id: userTxt
+                            anchors.centerIn: parent
+                            width: parent.width - 32
+                            text: displayModel ? displayModel.userText : ""
+                            color: "white"
+                            font.pixelSize: 15
+                            font.weight: Font.Medium
+                            wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignLeft
+                        }
+                        
+                        // Tail for bubble
+                        Canvas {
+                            anchors.right: parent.right
+                            anchors.rightMargin: -6
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 8
+                            width: 12
+                            height: 12
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.fillStyle = "#764ba2"
+                                ctx.beginPath()
+                                ctx.moveTo(0, 0)
+                                ctx.lineTo(12, 6)
+                                ctx.lineTo(0, 12)
+                                ctx.closePath()
+                                ctx.fill()
+                            }
+                        }
                     }
                 }
 
-                // AI MESSAGE BUBBLE - Also right aligned, dark glassmorphism
-                Row {
-                    anchors.right: parent.right
+                // AI MESSAGE BUBBLE (Left) - Glassmorphism style
+                Item {
+                    width: parent.width
+                    height: aiBubble.height + 10
                     visible: displayModel && displayModel.ttsText && displayModel.ttsText !== "Đang chờ" && displayModel.ttsText.length > 0
-                    spacing: 8
-                    layoutDirection: Qt.RightToLeft  // Avatar on right
 
-                    // Avatar on right side of bubble
+                    // AI Avatar
                     Rectangle {
                         id: aiAvatar
-                        width: 32
-                        height: 32
-                        radius: 16
-                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.bottom: aiBubble.bottom
+                        width: 36
+                        height: 36
+                        radius: 18
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: "#11998e" }
                             GradientStop { position: 1.0; color: "#38ef7d" }
                         }
+                        
                         Text {
                             anchors.centerIn: parent
                             text: "🤖"
-                            font.pixelSize: 16
+                            font.pixelSize: 18
                         }
                     }
 
                     Rectangle {
                         id: aiBubble
-                        width: Math.min(Math.max(aiTxt.implicitWidth + 36, 80), chatArea.width * 0.45)
-                        height: aiTxt.implicitHeight + 20
-                        radius: 18
-                        color: "#CC1e1e2e"
-                        border.color: "#40ffffff"
+                        anchors.left: aiAvatar.right
+                        anchors.leftMargin: 10
+                        width: Math.min(Math.max(aiTxt.implicitWidth + 40, 80), parent.width * 0.75)
+                        height: aiTxt.implicitHeight + 24
+                        radius: 20
+                        color: "#1e1e2e"
+                        border.color: "#333"
                         border.width: 1
+                        
+                        // Glassmorphism effect
+                        opacity: 0.95
                         
                         layer.enabled: true
                         layer.effect: DropShadow {
                             transparentBorder: true
                             horizontalOffset: 0
                             verticalOffset: 4
-                            radius: 10
-                            samples: 20
+                            radius: 12
+                            samples: 25
                             color: "#30000000"
                         }
 
                         Text {
                             id: aiTxt
                             anchors.centerIn: parent
-                            width: parent.width - 28
+                            width: parent.width - 32
                             text: displayModel ? displayModel.ttsText : ""
-                            color: "#e8e8e8"
-                            font.pixelSize: 14
+                            color: "#e0e0e0"
+                            font.pixelSize: 15
+                            font.weight: Font.Normal
                             wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignLeft
+                        }
+                        
+                        // Tail for bubble
+                        Canvas {
+                            anchors.left: parent.left
+                            anchors.leftMargin: -6
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 8
+                            width: 12
+                            height: 12
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.fillStyle = "#1e1e2e"
+                                ctx.beginPath()
+                                ctx.moveTo(12, 0)
+                                ctx.lineTo(0, 6)
+                                ctx.lineTo(12, 12)
+                                ctx.closePath()
+                                ctx.fill()
+                            }
                         }
                     }
                 }
