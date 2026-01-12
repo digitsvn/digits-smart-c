@@ -76,6 +76,16 @@ class SystemOptionsWidget(QWidget):
             
             # Chèn vào đầu form (row 0)
             form_layout.insertRow(0, "Ngôn ngữ:", self.language_combo)
+
+            # Thêm Screen Rotation
+            self.screen_rotation_combo = QComboBox()
+            self.screen_rotation_combo.addItem("Không xoay (0°)", "normal")
+            self.screen_rotation_combo.addItem("Xoay trái (90°)", "left")
+            self.screen_rotation_combo.addItem("Xoay ngược (180°)", "inverted")
+            self.screen_rotation_combo.addItem("Xoay phải (270°)", "right")
+            self.screen_rotation_combo.currentIndexChanged.connect(self.settings_changed.emit)
+            self.ui_controls["screen_rotation_combo"] = self.screen_rotation_combo
+            form_layout.insertRow(1, "🔄 Xoay màn hình:", self.screen_rotation_combo)
             
         except Exception as e:
             self.logger.error(f"Thêm lựa chọn ngôn ngữ thất bại: {e}", exc_info=True)
@@ -182,6 +192,13 @@ class SystemOptionsWidget(QWidget):
                 index = self.ui_controls["language_combo"].findData(language)
                 if index >= 0:
                     self.ui_controls["language_combo"].setCurrentIndex(index)
+
+            # Screen rotation
+            rotation = self.config_manager.get_config("SYSTEM_OPTIONS.SCREEN_ROTATION", "normal")
+            if self.ui_controls.get("screen_rotation_combo"):
+                index = self.ui_controls["screen_rotation_combo"].findData(rotation)
+                if index >= 0:
+                    self.ui_controls["screen_rotation_combo"].setCurrentIndex(index)
 
             client_id = self.config_manager.get_config("SYSTEM_OPTIONS.CLIENT_ID", "")
             self._set_text_value("client_id_edit", client_id)
@@ -296,6 +313,41 @@ class SystemOptionsWidget(QWidget):
             return control.isChecked()
         return False
 
+    def _apply_screen_rotation(self, rotation: str):
+        """
+        Áp dụng xoay màn hình bằng xrandr.
+        """
+        import subprocess
+        import os
+        
+        rotation_map = {
+            "normal": "normal",
+            "left": "left",
+            "right": "right",
+            "inverted": "inverted",
+        }
+        
+        xrandr_rotation = rotation_map.get(rotation, "normal")
+        
+        try:
+            # Đặt DISPLAY nếu chưa có
+            env = os.environ.copy()
+            env["DISPLAY"] = ":0"
+            
+            # Thử các output phổ biến
+            for output in ["HDMI-1", "HDMI-2", "HDMI-A-1", "DP-1"]:
+                result = subprocess.run(
+                    ["xrandr", "--output", output, "--rotate", xrandr_rotation],
+                    capture_output=True,
+                    env=env,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    self.logger.info(f"Đã xoay màn hình {output} thành {xrandr_rotation}")
+                    break
+        except Exception as e:
+            self.logger.error(f"Xoay màn hình thất bại: {e}")
+
     def get_config_data(self) -> dict:
         """
         Lấy dữ liệu cấu hình hiện tại.
@@ -308,6 +360,14 @@ class SystemOptionsWidget(QWidget):
                 language = self.ui_controls["language_combo"].currentData()
                 if language:
                     config_data["SYSTEM_OPTIONS.LANGUAGE"] = language
+
+            # Screen rotation - save and apply immediately
+            if self.ui_controls.get("screen_rotation_combo"):
+                rotation = self.ui_controls["screen_rotation_combo"].currentData()
+                if rotation:
+                    config_data["SYSTEM_OPTIONS.SCREEN_ROTATION"] = rotation
+                    # Apply xrandr rotation immediately
+                    self._apply_screen_rotation(rotation)
 
             # ID khách hàng và ID thiết bị
             client_id = self._get_text_value("client_id_edit")
