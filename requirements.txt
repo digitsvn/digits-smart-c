@@ -30,3 +30,4 @@ pyinstaller==6.15.0
 rich==14.1.0
 packaging==25.0
 requests==2.32.3
+yt-dlp>=2024.1.0
