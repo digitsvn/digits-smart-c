@@ -133,10 +133,11 @@ class _VideoCaptureWorker(threading.Thread):
                         continue
 
                 try:
+                    # Giảm JPEG quality để tối ưu cho Pi (60 thay vì 80)
                     ok, jpeg = cv2.imencode(
                         ".jpg",
                         frame,
-                        [int(cv2.IMWRITE_JPEG_QUALITY), 80],
+                        [int(cv2.IMWRITE_JPEG_QUALITY), 60],
                     )
                     if ok:
                         data = jpeg.tobytes()
