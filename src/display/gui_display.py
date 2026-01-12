@@ -27,133 +27,8 @@ class CombinedMeta(type(QObject), ABCMeta):
     pass
 
 
-class _VideoCaptureWorker(threading.Thread):
-    """Đọc frame từ camera hoặc file MP4 trên thread nền.
-
-    - Lưu JPEG bytes mới nhất + seq, để UI thread poll qua QTimer.
-    - Với MP4: tự động seek về đầu khi đọc hết (loop).
-    """
-
-    def __init__(
-        self,
-        *,
-        source: str,
-        camera_index: int,
-        frame_width: int,
-        frame_height: int,
-        file_path: str,
-        loop: bool,
-        fps: int,
-    ):
-        super().__init__(daemon=True)
-        self.source = (source or "none").lower()
-        self.camera_index = int(camera_index)
-        self.frame_width = int(frame_width)
-        self.frame_height = int(frame_height)
-        self.file_path = file_path or ""
-        self.loop = bool(loop)
-        self.fps = max(1, int(fps) if fps else 10)
-
-        self._stop_event = threading.Event()
-        self._lock = threading.Lock()
-        self._latest_jpeg: bytes | None = None
-        self._seq = 0
-        self._cap = None
-
-    def stop(self):
-        self._stop_event.set()
-
-    def pop_latest(self) -> tuple[int, bytes | None]:
-        with self._lock:
-            return self._seq, self._latest_jpeg
-
-    def _open_capture(self):
-        try:
-            import cv2
-
-            if self.source == "camera":
-                cap = cv2.VideoCapture(self.camera_index)
-                if cap is not None and cap.isOpened():
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_height)
-                return cap
-            if self.source == "file":
-                if not self.file_path:
-                    return None
-                return cv2.VideoCapture(self.file_path)
-        except Exception:
-            return None
-        return None
-
-    def _close_capture(self):
-        try:
-            if self._cap is not None:
-                self._cap.release()
-        except Exception:
-            pass
-        self._cap = None
-
-    def run(self):
-        target_dt = 1.0 / float(self.fps)
-        try:
-            import cv2
-
-            while not self._stop_event.is_set():
-                start_t = time.time()
-
-                if self._cap is None or not getattr(self._cap, "isOpened", lambda: False)():
-                    self._close_capture()
-                    self._cap = self._open_capture()
-                    if self._cap is None or not self._cap.isOpened():
-                        time.sleep(0.5)
-                        continue
-
-                ret, frame = self._cap.read()
-                if not ret or frame is None:
-                    if self.source == "file" and self.loop:
-                        # Seek về đầu video để loop
-                        try:
-                            self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                            # Đọc frame đầu tiên ngay lập tức để tránh màn hình đen
-                            ret, frame = self._cap.read()
-                            if ret and frame is not None:
-                                # Có frame, encode ngay không cần sleep
-                                pass
-                            else:
-                                # Không đọc được, reopen capture
-                                self._close_capture()
-                                time.sleep(0.05)
-                                continue
-                        except Exception:
-                            self._close_capture()
-                            time.sleep(0.05)
-                            continue
-                    else:
-                        time.sleep(0.1)
-                        continue
-
-                try:
-                    # Giảm JPEG quality để tối ưu cho Pi (60 thay vì 80)
-                    ok, jpeg = cv2.imencode(
-                        ".jpg",
-                        frame,
-                        [int(cv2.IMWRITE_JPEG_QUALITY), 60],
-                    )
-                    if ok:
-                        data = jpeg.tobytes()
-                        with self._lock:
-                            self._seq += 1
-                            self._latest_jpeg = data
-                except Exception:
-                    pass
-
-                elapsed = time.time() - start_t
-                sleep_t = target_dt - elapsed
-                if sleep_t > 0:
-                    time.sleep(min(sleep_t, 0.5))
-
-        finally:
-            self._close_capture()
+# Note: Không còn dùng OpenCV cho video nền.
+# Video nền được play bởi native QML Video component (hardware accelerated).
 
 
 class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
@@ -201,12 +76,6 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             "abort": None,
             "send_text": None,
         }
-
-        # Video (camera / mp4): chạy nền + đẩy frame qua display_model.videoFrameUrl
-        self._video_worker: _VideoCaptureWorker | None = None
-        self._video_timer: Optional[QTimer] = None
-        self._video_last_seq: int = -1
-        self._video_frame_file: Optional[Path] = None
 
     # =========================================================================
     # API công cộng - Callback và cập nhật
@@ -389,56 +258,12 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             self.logger.warning(f"Video file không tồn tại: {file_path}")
             self.display_model.update_video_frame_url("")
             self.display_model.update_video_file_path("")
-            self._stop_video()
             return
 
         # Dùng native video player - mượt mà, có hardware acceleration
         self.logger.info(f"Sử dụng native video player cho: {file_path}")
-        self._stop_video()
-        self.display_model.update_video_frame_url("")  # Tắt Image-based
+        self.display_model.update_video_frame_url("")  # Tắt Image-based (không dùng)
         self.display_model.update_video_file_path(file_path)  # Bật native Video
-
-    def _stop_video(self) -> None:
-        if self._video_timer is not None:
-            try:
-                self._video_timer.stop()
-            except Exception:
-                pass
-
-        if self._video_worker is not None:
-            try:
-                self._video_worker.stop()
-                self._video_worker.join(timeout=1.0)
-            except Exception:
-                pass
-
-        self._video_worker = None
-        self._video_last_seq = -1
-
-    def _on_video_tick(self) -> None:
-        """UI thread: poll JPEG bytes mới nhất, ghi ra cache file, cập nhật URL."""
-        try:
-            if not self._video_worker or not self._video_frame_file:
-                return
-            seq, jpeg = self._video_worker.pop_latest()
-            if jpeg is None or seq == self._video_last_seq:
-                return
-
-            tmp = self._video_frame_file.with_suffix(".tmp")
-            try:
-                tmp.write_bytes(jpeg)
-                tmp.replace(self._video_frame_file)
-            except Exception:
-                try:
-                    self._video_frame_file.write_bytes(jpeg)
-                except Exception:
-                    return
-
-            self._video_last_seq = seq
-            url = QUrl.fromLocalFile(str(self._video_frame_file)).toString() + f"?t={seq}"
-            self.display_model.update_video_frame_url(url)
-        except Exception:
-            pass
 
     # =========================================================================
     # Quy trình khởi động

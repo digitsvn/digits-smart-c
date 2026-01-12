@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
 from src.utils.config_manager import ConfigManager
 from src.utils.logging_config import get_logger
 from src.views.settings.components.audio import AudioWidget
-from src.views.settings.components.camera import CameraWidget
+from src.views.settings.components.video_background import VideoBackgroundWidget
 from src.views.settings.components.shortcuts_settings import ShortcutsSettingsWidget
 from src.views.settings.components.system_options import SystemOptionsWidget
 from src.views.settings.components.wake_word import WakeWordWidget
@@ -32,7 +32,7 @@ class SettingsWindow(QDialog):
         self.wifi_tab = None
         self.system_options_tab = None
         self.wake_word_tab = None
-        self.camera_tab = None
+        self.video_bg_tab = None
         self.audio_tab = None
         self.shortcuts_tab = None
 
@@ -117,8 +117,8 @@ class SettingsWindow(QDialog):
             # Tạo và thêm component từ đánh thức
             add_tab_safely(WakeWordWidget, "🎤 Wakeword", "wake_word_tab")
 
-            # Tạo và thêm component camera
-            add_tab_safely(CameraWidget, "📷 Camera", "camera_tab")
+            # Tạo và thêm component nền video
+            add_tab_safely(VideoBackgroundWidget, "🎬 Nền", "video_bg_tab")
 
             # Tạo và thêm component cài đặt phím tắt
             add_tab_safely(ShortcutsSettingsWidget, "⌨️ Phím tắt", "shortcuts_tab")
@@ -181,21 +181,11 @@ class SettingsWindow(QDialog):
                 except Exception as e:
                     self.logger.warning(f"Failed to write first-run marker: {e}")
 
-                # Hot-reload camera config without restart
-                try:
-                    from src.mcp.tools.camera import get_camera_instance
-                    camera = get_camera_instance()
-                    if camera and hasattr(camera, 'reload_config'):
-                        camera.reload_config()
-                        self.logger.info("Camera config hot-reloaded successfully")
-                except Exception as e:
-                    self.logger.warning(f"Failed to hot-reload camera config: {e}")
-
                 # Hiển thị lưu thành công và nhắc khởi động lại
                 reply = QMessageBox.question(
                     self,
                     "Lưu cấu hình thành công",
-                    "Cấu hình đã được lưu thành công!\n\nMột số thay đổi (như camera) đã tự động áp dụng.\nCác cấu hình khác cần khởi động lại phần mềm.\n\nKhởi động lại ngay bây giờ?",
+                    "Cấu hình đã được lưu thành công!\n\nCần khởi động lại phần mềm để áp dụng thay đổi.\n\nKhởi động lại ngay bây giờ?",
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.No,
                 )
@@ -231,10 +221,10 @@ class SettingsWindow(QDialog):
                 # Lưu file từ đánh thức
                 self.wake_word_tab.save_keywords()
 
-            # Cấu hình camera
-            if self.camera_tab:
-                camera_config = self.camera_tab.get_config_data()
-                all_config_data.update(camera_config)
+            # Cấu hình nền video
+            if self.video_bg_tab:
+                video_config = self.video_bg_tab.get_config_data()
+                all_config_data.update(video_config)
 
             # Cấu hình thiết bị âm thanh
             if self.audio_tab:
@@ -284,8 +274,8 @@ class SettingsWindow(QDialog):
             if self.wake_word_tab:
                 self.wake_word_tab.reset_to_defaults()
 
-            if self.camera_tab:
-                self.camera_tab.reset_to_defaults()
+            if self.video_bg_tab:
+                self.video_bg_tab.reset_to_defaults()
 
             if self.audio_tab:
                 self.audio_tab.reset_to_defaults()

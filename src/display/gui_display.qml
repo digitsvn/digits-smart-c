@@ -1,12 +1,23 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-import QtMultimedia 5.15
+
+// Try to load QtMultimedia (optional - for video background)
+// If not installed, app still works with emotion display
+Loader {
+    id: qtMultimediaLoader
+    source: "VideoBackground.qml"
+    onStatusChanged: {
+        if (status === Loader.Error) {
+            console.log("QtMultimedia not available, using emotion display only")
+        }
+    }
+}
 
 Rectangle {
     id: root
     width: 1024
     height: 768
-    color: "#000000" // Background black for video
+    color: "#1a1a2e" // Dark background
 
     // Define signals
     signal manualButtonPressed()
@@ -28,40 +39,26 @@ Rectangle {
         id: bgLayer
         anchors.fill: parent
 
-        // Native Video Player (Hardware accelerated)
-        Video {
-            id: videoPlayer
+        // Video Background Loader (only if QtMultimedia available)
+        Loader {
+            id: videoLoader
             anchors.fill: parent
-            visible: displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
-            source: visible ? displayModel.videoFilePath : ""
-            fillMode: VideoOutput.PreserveAspectCrop
-            autoPlay: true
-            loops: MediaPlayer.Infinite
-            muted: true  // Không phát âm thanh video nền
+            active: displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
+            source: active ? "VideoBackground.qml" : ""
             
-            onErrorChanged: {
-                if (error !== MediaPlayer.NoError) {
-                    console.log("Video error:", errorString)
+            onStatusChanged: {
+                if (status === Loader.Error) {
+                    console.log("Video not available, falling back to emotion")
+                    active = false
                 }
             }
         }
 
-        // Fallback: Image-based video (for camera/OpenCV)
-        Image {
-            id: videoView
-            anchors.fill: parent
-            visible: !videoPlayer.visible && displayModel && displayModel.videoFrameUrl && displayModel.videoFrameUrl.length > 0
-            source: visible ? displayModel.videoFrameUrl : ""
-            fillMode: Image.PreserveAspectCrop
-            cache: false
-            asynchronous: true
-        }
-
-        // Emotion Loader (only when video is hidden)
+        // Emotion Loader (when video is not active)
         Loader {
             id: emotionLoader
             anchors.fill: parent
-            visible: !videoView.visible
+            visible: !videoLoader.active || videoLoader.status !== Loader.Ready
 
             sourceComponent: {
                 var path = displayModel ? displayModel.emotionPath : ""
