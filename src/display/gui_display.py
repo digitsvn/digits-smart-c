@@ -626,9 +626,22 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             qml_file = Path(__file__).parent / "gui_display.qml"
 
         if not qml_file.exists():
-             print(f"ERROR: Cannot find gui_display.qml at {qml_file}")
+            self.logger.error(f"Không tìm thấy file QML: {qml_file}")
+            return
 
+        self.logger.info(f"Loading QML from: {qml_file}")
         self.qml_widget.setSource(QUrl.fromLocalFile(str(qml_file)))
+        
+        # Kiểm tra lỗi QML
+        qml_status = self.qml_widget.status()
+        if qml_status == QQuickWidget.Error:
+            errors = self.qml_widget.errors()
+            for error in errors:
+                self.logger.error(f"QML Error: {error.toString()}")
+        elif qml_status == QQuickWidget.Ready:
+            self.logger.info("QML loaded successfully")
+        else:
+            self.logger.warning(f"QML status: {qml_status}")
 
         # Đặt làm widget trung tâm của cửa sổ chính
         layout = QVBoxLayout(self.root)
