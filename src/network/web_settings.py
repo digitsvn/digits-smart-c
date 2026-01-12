@@ -1065,10 +1065,10 @@ class WebSettingsServer:
             import psutil
             import socket
             
-            language = self.config.get_config("SYSTEM_OPTIONS.LANGUAGE", "vi")
+            language = self.config.get_config("SYSTEM_OPTIONS.LANGUAGE", "vi-VN")
             ota_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", "")
-            ws_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.URL", "")
-            ws_token = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.TOKEN", "")
+            ws_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
+            ws_token = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_ACCESS_TOKEN", "")
             
             # Version
             version = "Unknown"
@@ -1111,7 +1111,7 @@ class WebSettingsServer:
         """Lưu cài đặt hệ thống."""
         try:
             data = await request.json()
-            self.config.update_config("SYSTEM_OPTIONS.LANGUAGE", data.get("language", "vi"))
+            self.config.update_config("SYSTEM_OPTIONS.LANGUAGE", data.get("language", "vi-VN"))
             
             # OTA URL
             if data.get("otaUrl"):
@@ -1119,11 +1119,11 @@ class WebSettingsServer:
             
             # WebSocket
             if data.get("wsUrl"):
-                self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.URL", data.get("wsUrl"))
+                self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", data.get("wsUrl"))
             if data.get("wsToken"):
-                self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.TOKEN", data.get("wsToken"))
+                self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_ACCESS_TOKEN", data.get("wsToken"))
             
-            return web.json_response({"success": True, "message": "Đã lưu! Cần restart app."})
+            return web.json_response({"success": True, "message": "Đã lưu! Restart app để áp dụng."})
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
     
