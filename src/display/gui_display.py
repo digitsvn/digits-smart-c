@@ -210,6 +210,7 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         """Đọc cấu hình VIDEO_BACKGROUND để bật video nền trong GUI.
 
         Sử dụng native QML Video player (hardware accelerated).
+        Hỗ trợ: file local, WebP animation, YouTube URL.
         """
         from src.utils.config_manager import ConfigManager
         from src.utils.resource_finder import get_project_root
@@ -236,6 +237,23 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             self.display_model.update_video_file_path("")
             return
 
+        source_type = video_cfg.get("SOURCE_TYPE", "file")
+        
+        # Xử lý YouTube URL
+        if source_type == "youtube":
+            youtube_url = video_cfg.get("YOUTUBE_URL", "")
+            if youtube_url:
+                stream_url = self._get_youtube_stream_url(youtube_url)
+                if stream_url:
+                    self.logger.info(f"Playing YouTube stream: {youtube_url}")
+                    self.display_model.update_video_frame_url("")
+                    self.display_model.update_video_file_path(stream_url)
+                    return
+                else:
+                    self.logger.warning("Không lấy được YouTube stream URL")
+            return
+
+        # Xử lý file local
         file_path = str(video_cfg.get("VIDEO_FILE_PATH", "") or "")
         
         if not file_path:
@@ -258,6 +276,31 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         self.logger.info(f"Sử dụng native video player cho: {file_path}")
         self.display_model.update_video_frame_url("")  # Tắt Image-based (không dùng)
         self.display_model.update_video_file_path(file_path)  # Bật native Video
+
+    def _get_youtube_stream_url(self, youtube_url: str) -> str:
+        """Lấy stream URL trực tiếp từ YouTube bằng yt-dlp."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["yt-dlp", "-f", "best[height<=720]", "-g", youtube_url],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                self.logger.error(f"yt-dlp error: {result.stderr}")
+                return ""
+        except FileNotFoundError:
+            self.logger.error("yt-dlp chưa cài. Chạy: pip install yt-dlp")
+            return ""
+        except subprocess.TimeoutExpired:
+            self.logger.error("yt-dlp timeout")
+            return ""
+        except Exception as e:
+            self.logger.error(f"Lấy YouTube URL thất bại: {e}")
+            return ""
 
     # =========================================================================
     # Quy trình khởi động

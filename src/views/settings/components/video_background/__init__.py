@@ -58,6 +58,7 @@ class VideoBackgroundWidget(QWidget):
         desc.setStyleSheet("color: #666;")
         layout.addWidget(desc)
 
+
         # Background Mode Group
         mode_group = QGroupBox("Chế độ nền")
         mode_layout = QVBoxLayout(mode_group)
@@ -71,8 +72,8 @@ class VideoBackgroundWidget(QWidget):
         mode_layout.addWidget(self.emotion_radio)
 
         # Option 2: Video background
-        self.video_radio = QRadioButton("🎬 Video nền")
-        self.video_radio.setToolTip("Phát video làm nền (hardware accelerated)")
+        self.video_radio = QRadioButton("🎬 Video/WebP nền")
+        self.video_radio.setToolTip("Phát video hoặc WebP animation làm nền")
         self.mode_button_group.addButton(self.video_radio, 1)
         mode_layout.addWidget(self.video_radio)
 
@@ -81,7 +82,7 @@ class VideoBackgroundWidget(QWidget):
         video_path_layout.addSpacing(25)  # Indent
         
         self.video_path_edit = QLineEdit()
-        self.video_path_edit.setPlaceholderText("Đường dẫn file video (.mp4, .webm, ...)")
+        self.video_path_edit.setPlaceholderText("Đường dẫn file video (.mp4, .webp, ...)")
         video_path_layout.addWidget(self.video_path_edit)
 
         self.browse_btn = QPushButton("📁 Chọn file")
@@ -89,6 +90,22 @@ class VideoBackgroundWidget(QWidget):
         video_path_layout.addWidget(self.browse_btn)
 
         mode_layout.addLayout(video_path_layout)
+
+        # Option 3: YouTube URL
+        self.youtube_radio = QRadioButton("📺 YouTube URL")
+        self.youtube_radio.setToolTip("Stream video từ YouTube (cần internet, có thể lag)")
+        self.mode_button_group.addButton(self.youtube_radio, 2)
+        mode_layout.addWidget(self.youtube_radio)
+
+        # YouTube URL input
+        youtube_layout = QHBoxLayout()
+        youtube_layout.addSpacing(25)
+        
+        self.youtube_url_edit = QLineEdit()
+        self.youtube_url_edit.setPlaceholderText("https://www.youtube.com/watch?v=... hoặc https://youtu.be/...")
+        youtube_layout.addWidget(self.youtube_url_edit)
+        
+        mode_layout.addLayout(youtube_layout)
 
         layout.addWidget(mode_group)
 
@@ -112,6 +129,7 @@ class VideoBackgroundWidget(QWidget):
         # Connect signals
         self.mode_button_group.buttonClicked.connect(self._on_mode_changed)
         self.video_path_edit.textChanged.connect(self._on_settings_changed)
+        self.youtube_url_edit.textChanged.connect(self._on_settings_changed)
 
         # Load available videos
         self._refresh_video_list()
@@ -183,8 +201,11 @@ class VideoBackgroundWidget(QWidget):
     def _update_ui_state(self):
         """Cập nhật trạng thái UI theo mode."""
         is_video = self.video_radio.isChecked()
+        is_youtube = self.youtube_radio.isChecked()
+        
         self.video_path_edit.setEnabled(is_video)
         self.browse_btn.setEnabled(is_video)
+        self.youtube_url_edit.setEnabled(is_youtube)
 
     def _on_settings_changed(self):
         """Phát signal khi settings thay đổi."""
@@ -197,13 +218,22 @@ class VideoBackgroundWidget(QWidget):
             
             enabled = video_cfg.get("ENABLED", False)
             video_path = video_cfg.get("VIDEO_FILE_PATH", "")
+            youtube_url = video_cfg.get("YOUTUBE_URL", "")
+            source_type = video_cfg.get("SOURCE_TYPE", "file")  # file, youtube
 
-            if enabled and video_path:
-                self.video_radio.setChecked(True)
-                self.video_path_edit.setText(video_path)
+            if enabled:
+                if source_type == "youtube" and youtube_url:
+                    self.youtube_radio.setChecked(True)
+                    self.youtube_url_edit.setText(youtube_url)
+                elif video_path:
+                    self.video_radio.setChecked(True)
+                    self.video_path_edit.setText(video_path)
+                else:
+                    self.emotion_radio.setChecked(True)
             else:
                 self.emotion_radio.setChecked(True)
                 self.video_path_edit.setText(video_path if video_path else "")
+                self.youtube_url_edit.setText(youtube_url if youtube_url else "")
 
             self._update_ui_state()
 
@@ -214,16 +244,35 @@ class VideoBackgroundWidget(QWidget):
     def get_config_data(self) -> Dict[str, Any]:
         """Lấy dữ liệu cấu hình để lưu."""
         is_video = self.video_radio.isChecked()
+        is_youtube = self.youtube_radio.isChecked()
         video_path = self.video_path_edit.text().strip()
+        youtube_url = self.youtube_url_edit.text().strip()
 
-        return {
-            "VIDEO_BACKGROUND.ENABLED": is_video and bool(video_path),
-            "VIDEO_BACKGROUND.VIDEO_FILE_PATH": video_path,
+        config = {
             "VIDEO_BACKGROUND.VIDEO_LOOP": True,
         }
+        
+        if is_youtube and youtube_url:
+            config["VIDEO_BACKGROUND.ENABLED"] = True
+            config["VIDEO_BACKGROUND.SOURCE_TYPE"] = "youtube"
+            config["VIDEO_BACKGROUND.YOUTUBE_URL"] = youtube_url
+            config["VIDEO_BACKGROUND.VIDEO_FILE_PATH"] = ""
+        elif is_video and video_path:
+            config["VIDEO_BACKGROUND.ENABLED"] = True
+            config["VIDEO_BACKGROUND.SOURCE_TYPE"] = "file"
+            config["VIDEO_BACKGROUND.VIDEO_FILE_PATH"] = video_path
+            config["VIDEO_BACKGROUND.YOUTUBE_URL"] = ""
+        else:
+            config["VIDEO_BACKGROUND.ENABLED"] = False
+            config["VIDEO_BACKGROUND.SOURCE_TYPE"] = "file"
+            config["VIDEO_BACKGROUND.VIDEO_FILE_PATH"] = video_path
+            config["VIDEO_BACKGROUND.YOUTUBE_URL"] = youtube_url
+        
+        return config
 
     def reset_to_defaults(self):
         """Reset về giá trị mặc định."""
         self.emotion_radio.setChecked(True)
-        self.video_path_edit.setText("assets/videos/HTMTECH.mp4")
+        self.video_path_edit.setText("assets/videos/HTMTECH.webp")
+        self.youtube_url_edit.setText("")
         self._update_ui_state()
