@@ -336,26 +336,16 @@ class WakeWordWidget(QWidget):
 
     def _save_keywords_to_file(self, keywords_text: str):
         """
-        Lưu từ đánh thức vào file keywords.txt, tự động chuyển đổi sang định dạng phù hợp.
+        Lưu từ đánh thức vào file keywords.txt.
+        Chỉ chuyển đổi sang định dạng keyword nếu input chưa có @.
         """
         try:
-            # Kiểm tra pypinyin nếu có tiếng Trung
-            has_chinese = any('\u4e00' <= char <= '\u9fff' for char in keywords_text)
-            if has_chinese and not PYPINYIN_AVAILABLE:
-                QMessageBox.warning(
-                    self,
-                    "Thiếu phụ thuộc",
-                    "Chức năng tự động chuyển đổi pinyin (cho tiếng Trung) cần cài đặt thư viện pypinyin\n\n"
-                    "Vui lòng chạy: pip install pypinyin",
-                )
-                return
-
             # Lấy đường dẫn mô hình đã cấu hình
             model_path = self.config_manager.get_config(
                 "WAKE_WORD_OPTIONS.MODEL_PATH", "models"
             )
 
-            # Sử dụng resource_finder để tìm kiếm thống nhất (giữ nhất quán với runtime)
+            # Sử dụng resource_finder để tìm kiếm thống nhất
             model_dir = resource_finder.find_directory(model_path)
 
             if model_dir is None:
@@ -369,26 +359,51 @@ class WakeWordWidget(QWidget):
 
             keywords_file = model_dir / "keywords.txt"
 
-            # Xử lý văn bản từ khóa đầu vào (mỗi dòng một từ tiếng Trung)
+            # Xử lý văn bản từ khóa đầu vào
             lines = [line.strip() for line in keywords_text.split("\n") if line.strip()]
 
             processed_lines = []
-            for chinese_text in lines:
-                # Tự động chuyển đổi sang định dạng pinyin
-                keyword_line = self._chinese_to_keyword_format(chinese_text)
-                processed_lines.append(keyword_line)
+            converted_count = 0
+            
+            for text in lines:
+                # Bỏ qua comment
+                if text.startswith("#"):
+                    processed_lines.append(text)
+                    continue
+                    
+                # Nếu đã có @ trong text -> đã đúng format, giữ nguyên
+                if "@" in text:
+                    processed_lines.append(text)
+                else:
+                    # Chưa có @ -> cần chuyển đổi
+                    # Kiểm tra tiếng Trung
+                    has_chinese = any('\u4e00' <= char <= '\u9fff' for char in text)
+                    
+                    if has_chinese and not PYPINYIN_AVAILABLE:
+                        QMessageBox.warning(
+                            self,
+                            "Thiếu phụ thuộc",
+                            "Chức năng tự động chuyển đổi pinyin (cho tiếng Trung) cần cài đặt thư viện pypinyin\n\n"
+                            "Vui lòng chạy: pip install pypinyin",
+                        )
+                        return
+                    
+                    keyword_line = self._chinese_to_keyword_format(text)
+                    processed_lines.append(keyword_line)
+                    converted_count += 1
 
             # Ghi vào file
             with open(keywords_file, "w", encoding="utf-8") as f:
                 f.write("\n".join(processed_lines) + "\n")
 
             self.logger.info(f"Lưu thành công {len(processed_lines)} từ khóa vào {keywords_file}")
-            QMessageBox.information(
-                self,
-                "Lưu thành công",
-                f"Lưu thành công {len(processed_lines)} từ đánh thức\n\n"
-                f"Đã tự động chuyển đổi sang định dạng pinyin",
-            )
+            
+            if converted_count > 0:
+                msg = f"Lưu thành công {len(processed_lines)} từ đánh thức\n\nĐã chuyển đổi {converted_count} từ khóa mới"
+            else:
+                msg = f"Lưu thành công {len(processed_lines)} từ đánh thức"
+                
+            QMessageBox.information(self, "Lưu thành công", msg)
 
         except Exception as e:
             self.logger.error(f"Lưu file từ khóa thất bại: {e}")
