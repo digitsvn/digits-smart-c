@@ -11,7 +11,7 @@
       "ACTIVATION_VERSION": "v2",
       "AUTHORIZATION_URL": "https://xiaozhi-ai-iot.vn/"
     },
-    "WINDOW_SIZE_MODE": "screen_75"
+    "WINDOW_SIZE_MODE": "screen_100"
   },
   "WAKE_WORD_OPTIONS": {
     "USE_WAKE_WORD": true,
@@ -66,9 +66,9 @@
   },
   "AEC_OPTIONS": {
     "ENABLED": true,
-    "BUFFER_MAX_LENGTH": 200,
-    "FRAME_DELAY": 3,
-    "FILTER_LENGTH_RATIO": 0.4,
+    "BUFFER_MAX_LENGTH": 300,
+    "FRAME_DELAY": 5,
+    "FILTER_LENGTH_RATIO": 0.5,
     "ENABLE_PREPROCESS": true
   },
   "AUDIO_DEVICES": {

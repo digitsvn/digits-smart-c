@@ -346,6 +346,9 @@ class Application:
                         # Tiếp tục đối thoại: khởi động lại nghe dựa trên chế độ hiện tại
                         async def _restart_listening():
                             try:
+                                # Delay nhỏ để tránh thu lại echo từ loa
+                                await asyncio.sleep(0.5)
+                                
                                 # REALTIME và đã ở LISTENING thì không cần gửi lại
                                 if not (
                                     self.listening_mode == ListeningMode.REALTIME
