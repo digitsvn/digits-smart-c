@@ -1202,13 +1202,19 @@ class WebSettingsServer:
         """Reload video trong GUI."""
         try:
             from src.application import Application
-            app = Application.get_instance()
+            app = Application._instance  # Dùng _instance trực tiếp thay vì get_instance()
+            
+            logger.info(f"Application._instance = {app}")
+            if app:
+                logger.info(f"app.display = {getattr(app, 'display', 'NOT FOUND')}")
+            
             if app and hasattr(app, 'display') and app.display:
                 logger.info("Calling reload_video_from_config...")
                 app.display.reload_video_from_config()
                 logger.info("Video reload completed")
             else:
                 logger.warning("Application or display not available for video reload")
+                logger.info("Video sẽ được áp dụng sau khi restart app")
         except Exception as e:
             logger.error(f"Reload video failed: {e}", exc_info=True)
     
