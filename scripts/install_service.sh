@@ -119,10 +119,18 @@ start_audio() {
     fi
 }
 
-# Kill instance cũ
-pkill -f "python3 main.py" 2>/dev/null || true
-pkill -f "python3 $APP_HOME/main.py" 2>/dev/null || true
-sleep 1
+# Kill TẤT CẢ instances cũ (quan trọng!)
+log "Killing old instances..."
+pkill -9 -f "python3 main.py" 2>/dev/null || true
+pkill -9 -f "python3 $APP_HOME/main.py" 2>/dev/null || true
+sleep 2
+
+# Double check
+pgrep -f "python3 main.py" && {
+    log "Force killing remaining instances..."
+    pkill -9 -f "python3 main.py" 2>/dev/null || true
+    sleep 1
+}
 
 # Setup
 start_audio
