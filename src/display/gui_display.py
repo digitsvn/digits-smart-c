@@ -197,10 +197,6 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         Xử lý đóng cửa sổ.
         """
         self._running = False
-        try:
-            self._stop_video()
-        except Exception:
-            pass
         if self.system_tray:
             self.system_tray.hide()
         if self.root:
@@ -238,7 +234,6 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         if not video_cfg.get("ENABLED"):
             self.display_model.update_video_frame_url("")
             self.display_model.update_video_file_path("")
-            self._stop_video()
             return
 
         file_path = str(video_cfg.get("VIDEO_FILE_PATH", "") or "")
@@ -247,7 +242,6 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             self.logger.warning("VIDEO_BACKGROUND enabled nhưng VIDEO_FILE_PATH trống")
             self.display_model.update_video_frame_url("")
             self.display_model.update_video_file_path("")
-            self._stop_video()
             return
         
         # Chuyển đổi relative path sang absolute

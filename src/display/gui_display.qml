@@ -40,10 +40,23 @@ Rectangle {
             loops: MediaPlayer.Infinite
             muted: true  // Không phát âm thanh video nền
             
+            onSourceChanged: {
+                if (source && source.length > 0) {
+                    console.log("Video source changed:", source)
+                    play()
+                }
+            }
+            
+            onStatusChanged: {
+                if (status === MediaPlayer.Loaded) {
+                    console.log("Video loaded, starting playback")
+                    play()
+                }
+            }
+            
             onErrorChanged: {
                 if (error !== MediaPlayer.NoError) {
                     console.log("Video error:", errorString)
-                    visible = false
                 }
             }
         }
