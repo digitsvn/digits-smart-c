@@ -35,10 +35,18 @@ Rectangle {
             anchors.fill: parent
             visible: displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
             source: visible ? displayModel.videoFilePath : ""
-            fillMode: VideoOutput.PreserveAspectCrop
+            fillMode: VideoOutput.Stretch  // Stretch để full màn hình, không crop
             autoPlay: true
             loops: MediaPlayer.Infinite
             muted: true  // Không phát âm thanh video nền
+            
+            // Tối ưu cho smooth loop
+            onPositionChanged: {
+                // Seek về đầu trước khi kết thúc để tránh giật
+                if (duration > 0 && position > duration - 100) {
+                    seek(0)
+                }
+            }
             
             onSourceChanged: {
                 if (source && source.length > 0) {
@@ -50,6 +58,10 @@ Rectangle {
             onStatusChanged: {
                 if (status === MediaPlayer.Loaded) {
                     console.log("Video loaded, starting playback")
+                    play()
+                } else if (status === MediaPlayer.EndOfMedia) {
+                    // Đảm bảo loop mượt
+                    seek(0)
                     play()
                 }
             }
