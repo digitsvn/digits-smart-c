@@ -16,7 +16,7 @@
   "WAKE_WORD_OPTIONS": {
     "USE_WAKE_WORD": true,
     "MODEL_PATH": "models",
-    "NUM_THREADS": 4,
+    "NUM_THREADS": 2,
     "PROVIDER": "cpu",
     "MAX_ACTIVE_PATHS": 2,
     "KEYWORDS_SCORE": 1.8,
@@ -71,8 +71,6 @@
     "input_sample_rate": 44100,
     "output_sample_rate": 44100
   },
-  "VIDEO_SOURCE": "none",
-  "WINDOW_SIZE_MODE": "fullhd",
   "EMOTION_DISPLAY": {
     "DEFAULT_EMOTION": "😊",
     "USE_SYSTEM_EMOJI": true
