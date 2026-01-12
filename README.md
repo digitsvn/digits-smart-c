@@ -2,278 +2,220 @@
 
 > Ứng dụng trợ lý AI thông minh với voice interaction, wake word detection và WiFi provisioning cho Raspberry Pi OS Lite.
 
+[![GitHub](https://img.shields.io/badge/GitHub-py--xiaozhi--pi-blue)](https://github.com/nguyenduchoai/py-xiaozhi-pi)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
+
 ## ✨ Tính Năng
 
-- 🎤 **Voice Interaction** - Tương tác bằng giọng nói với AI
-- 🔊 **Wake Word Detection** - Luôn lắng nghe từ khóa "Alexa", "Hey Lily", "Smart C"
-- 📡 **WiFi Provisioning** - Tự động bật Hotspot để cấu hình WiFi khi chưa có kết nối
-- 🖥️ **PyQt5 GUI** - Giao diện đồ họa hiện đại, hỗ trợ Wayland
-- 🔐 **Device Activation** - Kích hoạt thiết bị với server
-- 🎵 **Audio Config** - Cấu hình MIC và Speaker dễ dàng
+| Tính Năng | Mô Tả |
+|-----------|-------|
+| 🎤 **Voice Interaction** | Tương tác bằng giọng nói với AI |
+| 🔊 **Wake Word Detection** | Luôn lắng nghe "Alexa", "Hey Lily", "Smart C" |
+| 📡 **WiFi Provisioning** | Tự động bật Hotspot khi chưa có WiFi |
+| 🖥️ **Full HD GUI** | Giao diện 1920x1080, hỗ trợ Wayland |
+| 🔐 **Device Activation** | Kích hoạt thiết bị với server |
+| ⚡ **Auto-Update** | Tự động cập nhật khi khởi động |
 
-## 🚀 Cài Đặt Trên Raspberry Pi OS Lite
+---
+
+## 🚀 Cài Đặt
 
 ### Yêu Cầu
-- Raspberry Pi 4/5 với Pi OS Lite (64-bit recommended)
-- USB Microphone
-- Speaker (3.5mm jack hoặc HDMI)
-- Kết nối Internet (Ethernet hoặc WiFi)
+- Raspberry Pi 4/5 với Pi OS Lite (64-bit)
+- USB Microphone + Speaker
+- Kết nối Internet
 
-### Cài Đặt Nhanh
+### Cài Đặt Đầy Đủ (Với Desktop GUI)
 
 ```bash
-# Cài đặt Git (Ubuntu / Debian / Pi OS Lite)
-sudo apt update
-sudo apt install git -y
+# Cài Git
+sudo apt update && sudo apt install git -y
 
-# Clone repository
+# Clone và cài đặt
 git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
-
-# Chạy installer
-cd ~/.digits
-bash install_oslite.sh
+cd ~/.digits && bash install_oslite.sh
 ```
 
-### Installer Sẽ Tự Động:
-1. Cấu hình HDMI 1920x1080 Full HD
-2. Cài đặt Desktop Environment (labwc Wayland)
-3. Cài đặt PyQt5 và các thư viện GUI
-4. Cài đặt Audio (PulseAudio, ALSA)
-5. Cài đặt NetworkManager cho WiFi
-6. Cấu hình Desktop Autologin
-7. Thiết lập Autostart cho app
+### Cài Đặt Tối Giản (Không GUI - Nhẹ Hơn 80%)
 
-### 🔄 Update Cho Pi Đang Chạy
-
-**Bản mới (có update.sh):**
 ```bash
-cd ~/.digits
-bash update.sh
+git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
+cd ~/.digits && bash install_minimal.sh
 ```
 
-**Bản cũ (chưa có update.sh) - 1 lệnh duy nhất:**
+| Bản | RAM | GUI | Autostart |
+|-----|-----|-----|-----------|
+| **Full** | ~400MB | PyQt5 Desktop | Desktop Entry |
+| **Minimal** | ~100MB | CLI only | systemd service |
+
+---
+
+## 🔄 Cập Nhật
+
+### Update Thủ Công
 ```bash
-cd ~/.digits && git pull && chmod +x *.sh scripts/*.sh 2>/dev/null; echo "✅ Đã cập nhật!"
+cd ~/.digits && bash update.sh
 ```
 
-Script sẽ tự động:
-- Dừng app đang chạy
-- Backup config (config.json, efuse.json)
-- Pull code mới từ GitHub
-- Khôi phục config
-- Khởi động lại app
-
-### ⚡ Auto-Update Khi Khởi Động (Tùy Chọn)
-
-Muốn Pi tự động cập nhật mỗi khi boot:
+### Bản Cũ (Chưa Có update.sh)
 ```bash
-cd ~/.digits
-bash auto_update.sh --install
+cd ~/.digits && git pull && chmod +x *.sh scripts/*.sh 2>/dev/null; echo "✅ Done!"
 ```
 
-Gỡ bỏ auto-update:
+### Auto-Update Mỗi Khi Boot (Khuyến Nghị)
 ```bash
-bash auto_update.sh --uninstall
+cd ~/.digits && bash auto_update.sh --install
 ```
 
 ---
 
-### 🚀 Cài Đặt Tối Giản (Khuyến Nghị cho Pi OS Lite)
-
-**Dành cho ai muốn chạy nhẹ nhất - KHÔNG cần Desktop GUI:**
-
-```bash
-# Clone repository
-git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
-
-# Chạy minimal installer
-cd ~/.digits
-bash install_minimal.sh
-```
-
-**Ưu điểm của bản Minimal:**
-- ⚡ **Nhẹ hơn 80%** - Không cài Desktop, PyQt5, PulseAudio
-- 🔧 **systemd service** - Tự động chạy khi boot, tự restart nếu crash
-- 💾 **RAM ~100MB** thay vì ~400MB với GUI
-- 🎯 **Tập trung AI Chatbot** - Chỉ cài những gì cần thiết
-
-**Quản lý service:**
-```bash
-# Khởi động
-sudo systemctl start smartc
-
-# Xem trạng thái
-sudo systemctl status smartc
-
-# Xem logs
-tail -f ~/.digits/logs/smartc.log
-
-# Dừng
-sudo systemctl stop smartc
-```
-
 ## 📱 Luồng Hoạt Động
 
 ```
-Boot Pi → Desktop GUI → Smart C AI khởi động
-                              ↓
-                     Kiểm tra WiFi
-                    /            \
-              Không có          Có WiFi
-                 ↓                 ↓
-         Bật Hotspot         First Run?
-        "SmartC-Setup"      /        \
-              ↓           Có         Không
-      Captive Portal       ↓           ↓
-     192.168.4.1     Settings ──→ Activated?
-              ↓                  /        \
-         Cấu hình WiFi       Chưa        Rồi
-                               ↓           ↓
-                          Activation → Chat Bot GUI
+Boot Pi → Smart C AI khởi động
+              ↓
+        Kiểm tra WiFi
+        /           \
+   Không có        Có WiFi
+      ↓               ↓
+ Bật Hotspot      First Run?
+"SmartC-Setup"    /        \
+      ↓         Có         Không
+Captive Portal   ↓           ↓
+192.168.4.1   Settings   Activated?
+      ↓                  /        \
+ Cấu hình WiFi       Chưa        Rồi
+                       ↓           ↓
+                   Activation → Chat Bot
 ```
 
-### Chi tiết:
-1. **Boot** → Desktop (labwc Wayland) tự động khởi động
-2. **Smart C AI** tự động chạy
-3. **Không có WiFi** → Bật Hotspot `SmartC-Setup` (pass: `smartc123`)
-4. **Captive Portal** → User kết nối và cấu hình WiFi tại http://192.168.4.1
-5. **First-run** → Mở Settings cấu hình MIC/Speaker
-6. **Activation** → Xác thực với Server (QR Code + OTP)
-7. **Chat Bot** → Sẵn sàng tương tác, nói "Alexa" hoặc "Hey Lily"
+---
 
 ## 🎤 Wake Words
 
-Ứng dụng sử dụng [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) để phát hiện từ khóa:
-
 | Từ khóa | Trigger |
 |---------|---------|
-| `xiaozhi` | @xiaozhi |
-| `lily` | @lily |
 | `alexa` | @alexa |
 | `hey lily` | @hey_lily |
 | `smart c` | @smartc |
+| `xiaozhi` | @xiaozhi |
 | `sophia` | @sophia |
 
-## 📁 Cấu Trúc Thư Mục
-
-```
-~/.digits/
-├── main.py                 # Entry point
-├── run.sh                  # Launcher script
-├── install_oslite.sh       # OS Lite installer
-├── config/
-│   ├── config.json         # Cấu hình app (tự động tạo)
-│   └── config.example.json # Template cấu hình
-├── models/
-│   ├── encoder.onnx        # Wake word model
-│   ├── decoder.onnx
-│   ├── joiner.onnx
-│   └── keywords.txt        # Danh sách wake words
-├── src/
-│   ├── core/
-│   │   └── startup_flow.py # Quản lý luồng khởi động
-│   ├── network/
-│   │   ├── wifi_manager.py # Quản lý WiFi/Hotspot
-│   │   └── wifi_captive_portal.py
-│   ├── views/
-│   │   ├── settings/       # Settings UI
-│   │   └── activation/     # Activation UI
-│   └── ...
-└── logs/
-    └── smartc.log          # Log files
-```
+---
 
 ## ⚙️ Cấu Hình
 
-### WiFi Hotspot
+### WiFi Hotspot (Khi Không Có Mạng)
 - **SSID:** `SmartC-Setup`
 - **Password:** `smartc123`
 - **IP:** `192.168.4.1`
 
-### Audio Devices
-Lần đầu chạy, hệ thống tự động tạo `config/config.json` từ template.
+### Độ Phân Giải Cửa Sổ
+Chỉnh trong `config/config.json`:
 
-Cấu hình trong Settings hoặc chỉnh `config/config.json`:
-```json
-{
-  "AUDIO_DEVICES": {
-    "input_device_id": 2,
-    "input_device_name": "USB PnP Sound Device",
-    "output_device_id": 1,
-    "output_device_name": "bcm2835 Headphones",
-    "input_sample_rate": 44100,
-    "output_sample_rate": 44100
-  }
-}
-```
-
-> ⚠️ **Lưu ý:** File `config/config.json` chứa tokens xác thực và không được commit vào Git.  
-> Sử dụng `config/config.example.json` làm template.
-
-### Window Size (Độ phân giải)
-Cấu hình trong `config/config.json`:
 ```json
 {
   "WINDOW_SIZE_MODE": "fullhd"
 }
 ```
 
-**Các chế độ hỗ trợ:**
+| Mode | Kích thước |
+|------|------------|
+| `fullhd` | 1920x1080 (khuyến nghị) |
+| `hd` | 1280x720 |
+| `screen_100` | Toàn màn hình |
 
-| Mode | Kích thước | Mô tả |
-|------|------------|-------|
-| `fullhd` | 1920x1080 | Full HD (khuyến nghị) |
-| `hd` | 1280x720 | HD |
-| `screen_75` | 75% màn hình | 75% kích thước màn hình |
-| `screen_100` | 100% | Toàn màn hình |
-| `vertical_916` | 9:16 | Tỷ lệ dọc (cho video dọc) |
-| `default` | Auto | Tự động: Full HD nếu màn hình đủ lớn |
+### Audio Devices
+Cấu hình trong Settings hoặc `config/config.json`:
 
-## 🔧 Troubleshooting
-
-### Kiểm tra Audio & WiFi
-```bash
-python3 ~/.digits/scripts/check_audio_wifi.py
+```json
+{
+  "AUDIO_DEVICES": {
+    "input_device_name": "USB PnP Sound Device",
+    "output_device_name": "bcm2835 Headphones"
+  }
+}
 ```
 
-### Kiểm tra nhanh
-```bash
-python3 ~/.digits/scripts/quick_test.py
-```
-
-### Xem Logs
-```bash
-tail -f ~/.digits/logs/smartc.log
-```
-
-### Chạy thủ công
-```bash
-~/.digits/run.sh
-```
-
-### Fix Autostart (nếu app không tự chạy khi boot)
-```bash
-bash ~/.digits/scripts/fix_autostart.sh
-sudo reboot
-```
-
-### Fix Display (độ phân giải màn hình hệ thống)
-```bash
-sudo bash ~/.digits/scripts/fix_display.sh
-# Chọn: 1) Full HD  2) HD  3) XGA  4) 7inch  5) Auto
-sudo reboot
-```
-
-## 🌐 Server
-
-- **Website:** https://xiaozhi-ai-iot.vn
-- **WebSocket:** wss://xiaozhi-ai-iot.vn/api/v1/ws
-- **OTA:** https://xiaozhi-ai-iot.vn/api/v1/ota
-
-## 📄 License
-
-MIT License
+> ⚠️ File `config/config.json` chứa tokens - không commit vào Git!
 
 ---
 
-**Smart C AI** - *Trợ lý AI thông minh cho mọi nhà* 🏠
+## 🔧 Scripts Tiện Ích
+
+| Script | Mục Đích | Lệnh |
+|--------|----------|------|
+| `update.sh` | Cập nhật app | `bash update.sh` |
+| `auto_update.sh` | Bật auto-update on boot | `bash auto_update.sh --install` |
+| `scripts/fix_autostart.sh` | Sửa app không tự chạy | `bash scripts/fix_autostart.sh` |
+| `scripts/fix_display.sh` | Sửa độ phân giải HDMI | `sudo bash scripts/fix_display.sh` |
+
+---
+
+## � Troubleshooting
+
+```bash
+# Xem logs
+tail -f ~/.digits/logs/smartc.log
+
+# Kiểm tra audio & wifi
+python3 ~/.digits/scripts/check_audio_wifi.py
+
+# Chạy thủ công
+~/.digits/run.sh
+
+# Restart service (minimal mode)
+sudo systemctl restart smartc
+
+# Fix autostart
+bash ~/.digits/scripts/fix_autostart.sh && sudo reboot
+
+# Fix display Full HD
+sudo bash ~/.digits/scripts/fix_display.sh && sudo reboot
+```
+
+---
+
+## 📁 Cấu Trúc Thư Mục
+
+```
+~/.digits/
+├── main.py                 # Entry point
+├── run.sh                  # GUI launcher
+├── run_cli.sh              # CLI launcher
+├── update.sh               # Update script
+├── auto_update.sh          # Auto-update installer
+├── install_oslite.sh       # Full installer
+├── install_minimal.sh      # Minimal installer
+├── config/
+│   ├── config.json         # Cấu hình (tự động tạo)
+│   └── config.example.json # Template
+├── models/                 # Wake word models
+├── src/                    # Source code
+├── scripts/                # Utility scripts
+└── logs/                   # Log files
+```
+
+---
+
+## 🌐 Server
+
+| Service | URL |
+|---------|-----|
+| Website | https://xiaozhi-ai-iot.vn |
+| WebSocket | wss://xiaozhi-ai-iot.vn/api/v1/ws |
+| OTA | https://xiaozhi-ai-iot.vn/api/v1/ota |
+
+---
+
+## 📄 License
+
+MIT License - [Xem chi tiết](LICENSE)
+
+---
+
+<p align="center">
+  <b>Smart C AI</b> - <i>Trợ lý AI thông minh cho mọi nhà</i> 🏠
+</p>
