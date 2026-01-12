@@ -1195,9 +1195,13 @@ class WebSettingsServer:
             from src.application import Application
             app = Application.get_instance()
             if app and hasattr(app, 'display') and app.display:
+                logger.info("Calling reload_video_from_config...")
                 app.display.reload_video_from_config()
+                logger.info("Video reload completed")
+            else:
+                logger.warning("Application or display not available for video reload")
         except Exception as e:
-            logger.error(f"Reload video failed: {e}")
+            logger.error(f"Reload video failed: {e}", exc_info=True)
     
     def _apply_rotation(self, rotation: str):
         """Apply xrandr rotation."""

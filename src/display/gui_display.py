@@ -303,19 +303,29 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             return ""
 
     def reload_video_from_config(self) -> None:
-        """Reload video từ config - được gọi từ Web Dashboard."""
-        self.logger.info("Reloading video from config...")
-        try:
-            # Reload config trước
-            from src.utils.config_manager import ConfigManager
-            cfg = ConfigManager.get_instance()
-            cfg.reload_config()
-            
-            # Sau đó reload video
-            self._start_video_from_config()
-            self.logger.info("Video reloaded successfully")
-        except Exception as e:
-            self.logger.error(f"Reload video failed: {e}")
+        """Reload video từ config - được gọi từ Web Dashboard.
+        
+        Dùng QTimer.singleShot để đảm bảo chạy trong main Qt thread.
+        """
+        self.logger.info("Scheduling video reload...")
+        
+        def do_reload():
+            try:
+                self.logger.info("Reloading video from config...")
+                # Reload config trước
+                from src.utils.config_manager import ConfigManager
+                cfg = ConfigManager.get_instance()
+                cfg.reload_config()
+                
+                # Sau đó reload video
+                self._start_video_from_config()
+                self.logger.info("Video reloaded successfully")
+            except Exception as e:
+                self.logger.error(f"Reload video failed: {e}")
+        
+        # Dùng QTimer.singleShot để chạy trong main thread
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, do_reload)
 
     # =========================================================================
     # Quy trình khởi động
