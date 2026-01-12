@@ -176,6 +176,25 @@ DASHBOARD_HTML = """
             </div>
             <button class="btn btn-primary" onclick="saveVideo()">💾 Lưu Video</button>
             <div id="videoStatus"></div>
+            
+            <hr style="border-color: #444; margin: 20px 0;">
+            
+            <div class="form-group">
+                <label>📤 Upload Video mới:</label>
+                <input type="file" id="videoFile" accept="video/*,.gif,.webp" 
+                    style="display:none;" onchange="uploadVideo()">
+                <button class="btn btn-success" onclick="document.getElementById('videoFile').click()" 
+                    style="margin-top: 8px;">
+                    📁 Chọn File Upload
+                </button>
+                <div id="uploadProgress" style="margin-top: 10px; display: none;">
+                    <div style="background: #333; border-radius: 8px; overflow: hidden;">
+                        <div id="progressBar" style="height: 8px; background: linear-gradient(90deg, #667eea, #764ba2); width: 0%;"></div>
+                    </div>
+                    <small id="uploadText" style="color: #888;">Đang upload...</small>
+                </div>
+            </div>
+            <div id="uploadStatus"></div>
         </div>
         
         <div class="card">
@@ -283,6 +302,59 @@ DASHBOARD_HTML = """
             } catch (e) {
                 showStatus('videoStatus', 'error', 'Lỗi kết nối');
             }
+        }
+        
+        async function uploadVideo() {
+            const fileInput = document.getElementById('videoFile');
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('progressBar');
+            const uploadText = document.getElementById('uploadText');
+            
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '0%';
+            uploadText.textContent = 'Đang upload...';
+            
+            const formData = new FormData();
+            formData.append('video', file);
+            
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percent + '%';
+                        uploadText.textContent = `Đang upload... ${Math.round(percent)}%`;
+                    }
+                };
+                
+                xhr.onload = () => {
+                    progressDiv.style.display = 'none';
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success) {
+                        showStatus('uploadStatus', 'success', 'Upload thành công: ' + data.filename);
+                        document.getElementById('videoPath').value = data.path;
+                        loadStatus(); // Refresh video list
+                    } else {
+                        showStatus('uploadStatus', 'error', data.message);
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    progressDiv.style.display = 'none';
+                    showStatus('uploadStatus', 'error', 'Upload thất bại');
+                };
+                
+                xhr.open('POST', '/api/upload');
+                xhr.send(formData);
+            } catch (e) {
+                progressDiv.style.display = 'none';
+                showStatus('uploadStatus', 'error', 'Lỗi: ' + e.message);
+            }
+            
+            fileInput.value = ''; // Reset input
         }
         
         async function saveRotation() {
@@ -440,6 +512,7 @@ class WebSettingsServer:
         self.app.router.add_get('/', self._handle_index)
         self.app.router.add_get('/api/status', self._handle_status)
         self.app.router.add_post('/api/video', self._handle_video)
+        self.app.router.add_post('/api/upload', self._handle_upload)
         self.app.router.add_post('/api/rotation', self._handle_rotation)
         self.app.router.add_post('/api/youtube', self._handle_youtube)
         self.app.router.add_get('/api/audio/devices', self._handle_audio_devices)
@@ -493,6 +566,52 @@ class WebSettingsServer:
             
             return web.json_response({"success": True, "message": "Đã lưu! Video sẽ áp dụng ngay."})
         except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_upload(self, request):
+        """Upload video file."""
+        try:
+            reader = await request.multipart()
+            field = await reader.next()
+            
+            if field.name != 'video':
+                return web.json_response({"success": False, "message": "Không tìm thấy file"})
+            
+            filename = field.filename
+            if not filename:
+                return web.json_response({"success": False, "message": "Tên file không hợp lệ"})
+            
+            # Sanitize filename
+            import re
+            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+            
+            # Save to assets/videos
+            videos_dir = get_project_root() / "assets" / "videos"
+            videos_dir.mkdir(parents=True, exist_ok=True)
+            
+            file_path = videos_dir / safe_filename
+            
+            # Write file
+            size = 0
+            with open(file_path, 'wb') as f:
+                while True:
+                    chunk = await field.read_chunk()
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    f.write(chunk)
+            
+            relative_path = f"assets/videos/{safe_filename}"
+            logger.info(f"Uploaded video: {relative_path} ({size} bytes)")
+            
+            return web.json_response({
+                "success": True, 
+                "message": f"Upload thành công!",
+                "filename": safe_filename,
+                "path": relative_path
+            })
+        except Exception as e:
+            logger.error(f"Upload failed: {e}")
             return web.json_response({"success": False, "message": str(e)})
     
     async def _handle_youtube(self, request):
