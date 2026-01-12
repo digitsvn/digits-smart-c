@@ -1,0 +1,514 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Web Settings Dashboard - Quản lý cài đặt qua trình duyệt web.
+
+Chạy tại http://<IP>:8080 khi app khởi động.
+Cho phép cấu hình video nền, xoay màn hình, v.v. từ điện thoại/máy tính.
+"""
+
+import asyncio
+import json
+import os
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+from aiohttp import web
+
+from src.utils.config_manager import ConfigManager
+from src.utils.logging_config import get_logger
+from src.utils.resource_finder import get_project_root
+
+logger = get_logger(__name__)
+
+# HTML Template
+DASHBOARD_HTML = """
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart C - Settings</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 20px;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            padding: 30px 0;
+        }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .header p { color: #888; }
+        .card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-group { margin-bottom: 15px; }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 14px;
+        }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #fff;
+            font-size: 16px;
+        }
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:active { transform: translateY(0); }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: #fff;
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: #fff;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: center;
+        }
+        .status.success { background: rgba(56, 239, 125, 0.2); color: #38ef7d; }
+        .status.error { background: rgba(245, 87, 108, 0.2); color: #f5576c; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .info-item {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .info-item .label { color: #888; font-size: 12px; }
+        .info-item .value { font-size: 16px; margin-top: 5px; }
+        .video-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .video-btn {
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .video-btn:hover { background: rgba(255,255,255,0.2); }
+        .video-btn.active { background: #667eea; border-color: #667eea; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Smart C Settings</h1>
+            <p>Quản lý cài đặt từ xa</p>
+        </div>
+        
+        <div class="card">
+            <h2>📊 Trạng thái</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="label">IP Address</div>
+                    <div class="value" id="ipAddress">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">Uptime</div>
+                    <div class="value" id="uptime">Loading...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>🎬 Video Nền</h2>
+            <div class="form-group">
+                <label>Chọn nhanh:</label>
+                <div class="video-list" id="videoList">Loading...</div>
+            </div>
+            <div class="form-group">
+                <label>Hoặc nhập đường dẫn:</label>
+                <input type="text" id="videoPath" placeholder="assets/videos/HTMTECH.mp4">
+            </div>
+            <button class="btn btn-primary" onclick="saveVideo()">💾 Lưu Video</button>
+            <div id="videoStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>🔄 Xoay Màn Hình</h2>
+            <div class="form-group">
+                <select id="rotation">
+                    <option value="normal">Không xoay (0°)</option>
+                    <option value="left">Xoay trái (90°)</option>
+                    <option value="inverted">Xoay ngược (180°)</option>
+                    <option value="right">Xoay phải (270°)</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="saveRotation()">💾 Lưu</button>
+            <div id="rotationStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>📺 YouTube URL</h2>
+            <div class="form-group">
+                <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            <button class="btn btn-primary" onclick="saveYoutube()">💾 Lưu YouTube</button>
+            <div id="youtubeStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>⚙️ Điều khiển</h2>
+            <button class="btn btn-success" onclick="restartApp()" style="margin-bottom: 10px;">🔄 Restart App</button>
+            <button class="btn btn-danger" onclick="rebootPi()">🔌 Reboot Pi</button>
+        </div>
+    </div>
+    
+    <script>
+        async function loadStatus() {
+            try {
+                const resp = await fetch('/api/status');
+                const data = await resp.json();
+                document.getElementById('ipAddress').textContent = data.ip || 'Unknown';
+                document.getElementById('uptime').textContent = data.uptime || 'Unknown';
+                document.getElementById('videoPath').value = data.video_path || '';
+                document.getElementById('rotation').value = data.rotation || 'normal';
+                document.getElementById('youtubeUrl').value = data.youtube_url || '';
+                
+                // Video list
+                const videoList = document.getElementById('videoList');
+                videoList.innerHTML = '';
+                (data.videos || []).forEach(v => {
+                    const btn = document.createElement('button');
+                    btn.className = 'video-btn' + (v === data.video_path ? ' active' : '');
+                    btn.textContent = v.split('/').pop();
+                    btn.onclick = () => {
+                        document.getElementById('videoPath').value = v;
+                        document.querySelectorAll('.video-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    };
+                    videoList.appendChild(btn);
+                });
+            } catch (e) {
+                console.error('Error loading status:', e);
+            }
+        }
+        
+        async function saveVideo() {
+            const path = document.getElementById('videoPath').value;
+            try {
+                const resp = await fetch('/api/video', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path})
+                });
+                const data = await resp.json();
+                showStatus('videoStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('videoStatus', 'error', 'Lỗi kết nối');
+            }
+        }
+        
+        async function saveRotation() {
+            const rotation = document.getElementById('rotation').value;
+            try {
+                const resp = await fetch('/api/rotation', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({rotation})
+                });
+                const data = await resp.json();
+                showStatus('rotationStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('rotationStatus', 'error', 'Lỗi kết nối');
+            }
+        }
+        
+        async function saveYoutube() {
+            const url = document.getElementById('youtubeUrl').value;
+            try {
+                const resp = await fetch('/api/youtube', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url})
+                });
+                const data = await resp.json();
+                showStatus('youtubeStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('youtubeStatus', 'error', 'Lỗi kết nối');
+            }
+        }
+        
+        async function restartApp() {
+            if (!confirm('Restart app?')) return;
+            try {
+                await fetch('/api/restart', {method: 'POST'});
+                showStatus('videoStatus', 'success', 'Đang restart...');
+                setTimeout(() => location.reload(), 3000);
+            } catch (e) {}
+        }
+        
+        async function rebootPi() {
+            if (!confirm('Reboot Raspberry Pi?')) return;
+            try {
+                await fetch('/api/reboot', {method: 'POST'});
+                alert('Pi đang reboot...');
+            } catch (e) {}
+        }
+        
+        function showStatus(id, type, message) {
+            const el = document.getElementById(id);
+            el.className = 'status ' + type;
+            el.textContent = message;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 3000);
+        }
+        
+        loadStatus();
+        setInterval(loadStatus, 30000);
+    </script>
+</body>
+</html>
+"""
+
+
+class WebSettingsServer:
+    """Web Settings Dashboard Server."""
+    
+    def __init__(self, port: int = 8080):
+        self.port = port
+        self.config = ConfigManager.get_instance()
+        self.app: Optional[web.Application] = None
+        self.runner: Optional[web.AppRunner] = None
+        self._start_time = asyncio.get_event_loop().time()
+    
+    async def start(self):
+        """Khởi động web server."""
+        self.app = web.Application()
+        self._setup_routes()
+        
+        self.runner = web.AppRunner(self.app)
+        await self.runner.setup()
+        
+        site = web.TCPSite(self.runner, '0.0.0.0', self.port)
+        await site.start()
+        
+        ip = self._get_ip()
+        logger.info(f"🌐 Web Settings Dashboard: http://{ip}:{self.port}")
+    
+    async def stop(self):
+        """Dừng web server."""
+        if self.runner:
+            await self.runner.cleanup()
+    
+    def _setup_routes(self):
+        """Thiết lập routes."""
+        self.app.router.add_get('/', self._handle_index)
+        self.app.router.add_get('/api/status', self._handle_status)
+        self.app.router.add_post('/api/video', self._handle_video)
+        self.app.router.add_post('/api/rotation', self._handle_rotation)
+        self.app.router.add_post('/api/youtube', self._handle_youtube)
+        self.app.router.add_post('/api/restart', self._handle_restart)
+        self.app.router.add_post('/api/reboot', self._handle_reboot)
+    
+    async def _handle_index(self, request):
+        """Trang chính."""
+        return web.Response(text=DASHBOARD_HTML, content_type='text/html')
+    
+    async def _handle_status(self, request):
+        """API trạng thái."""
+        # Lấy danh sách video
+        videos_dir = get_project_root() / "assets" / "videos"
+        videos = []
+        if videos_dir.exists():
+            for ext in ['*.mp4', '*.webm', '*.gif']:
+                videos.extend([str(p.relative_to(get_project_root())) for p in videos_dir.glob(ext)])
+        
+        # Uptime
+        uptime_seconds = int(asyncio.get_event_loop().time() - self._start_time)
+        uptime = f"{uptime_seconds // 60}m {uptime_seconds % 60}s"
+        
+        # Config
+        video_cfg = self.config.get_config("VIDEO_BACKGROUND", {}) or {}
+        rotation = self.config.get_config("SYSTEM_OPTIONS.SCREEN_ROTATION", "normal")
+        
+        return web.json_response({
+            "ip": self._get_ip(),
+            "uptime": uptime,
+            "videos": videos,
+            "video_path": video_cfg.get("VIDEO_FILE_PATH", ""),
+            "youtube_url": video_cfg.get("YOUTUBE_URL", ""),
+            "rotation": rotation,
+        })
+    
+    async def _handle_video(self, request):
+        """Lưu video path."""
+        try:
+            data = await request.json()
+            path = data.get("path", "")
+            
+            self.config.set_config("VIDEO_BACKGROUND.ENABLED", bool(path))
+            self.config.set_config("VIDEO_BACKGROUND.SOURCE_TYPE", "file")
+            self.config.set_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", path)
+            self.config.set_config("VIDEO_BACKGROUND.YOUTUBE_URL", "")
+            self.config.save_config()
+            
+            # Reload video trong app
+            self._reload_video()
+            
+            return web.json_response({"success": True, "message": "Đã lưu! Video sẽ áp dụng ngay."})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_youtube(self, request):
+        """Lưu YouTube URL."""
+        try:
+            data = await request.json()
+            url = data.get("url", "")
+            
+            self.config.set_config("VIDEO_BACKGROUND.ENABLED", bool(url))
+            self.config.set_config("VIDEO_BACKGROUND.SOURCE_TYPE", "youtube")
+            self.config.set_config("VIDEO_BACKGROUND.YOUTUBE_URL", url)
+            self.config.set_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", "")
+            self.config.save_config()
+            
+            self._reload_video()
+            
+            return web.json_response({"success": True, "message": "Đã lưu YouTube URL!"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_rotation(self, request):
+        """Xoay màn hình."""
+        try:
+            data = await request.json()
+            rotation = data.get("rotation", "normal")
+            
+            self.config.set_config("SYSTEM_OPTIONS.SCREEN_ROTATION", rotation)
+            self.config.save_config()
+            
+            # Apply xrandr
+            self._apply_rotation(rotation)
+            
+            return web.json_response({"success": True, "message": f"Đã xoay màn hình: {rotation}"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_restart(self, request):
+        """Restart app."""
+        asyncio.create_task(self._do_restart())
+        return web.json_response({"success": True, "message": "Đang restart..."})
+    
+    async def _handle_reboot(self, request):
+        """Reboot Pi."""
+        subprocess.Popen(["sudo", "reboot"])
+        return web.json_response({"success": True, "message": "Đang reboot..."})
+    
+    async def _do_restart(self):
+        """Thực hiện restart."""
+        await asyncio.sleep(1)
+        os.execv("/usr/bin/python3", ["python3", "main.py", "--mode", "gui"])
+    
+    def _reload_video(self):
+        """Reload video trong GUI."""
+        try:
+            from src.application import Application
+            app = Application.get_instance()
+            if app and hasattr(app, 'display') and app.display:
+                app.display.reload_video_from_config()
+        except Exception as e:
+            logger.error(f"Reload video failed: {e}")
+    
+    def _apply_rotation(self, rotation: str):
+        """Apply xrandr rotation."""
+        env = os.environ.copy()
+        env["DISPLAY"] = ":0"
+        
+        for output in ["HDMI-1", "HDMI-2", "HDMI-A-1"]:
+            try:
+                result = subprocess.run(
+                    ["xrandr", "--output", output, "--rotate", rotation],
+                    capture_output=True, env=env, timeout=5
+                )
+                if result.returncode == 0:
+                    logger.info(f"Rotated {output} to {rotation}")
+                    break
+            except Exception:
+                pass
+    
+    def _get_ip(self) -> str:
+        """Lấy IP address."""
+        try:
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "Unknown"
+
+
+# Singleton instance
+_server: Optional[WebSettingsServer] = None
+
+
+async def start_web_settings(port: int = 8080):
+    """Khởi động Web Settings Server."""
+    global _server
+    if _server is None:
+        _server = WebSettingsServer(port)
+        await _server.start()
+    return _server
+
+
+async def stop_web_settings():
+    """Dừng Web Settings Server."""
+    global _server
+    if _server:
+        await _server.stop()
+        _server = None

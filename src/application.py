@@ -117,6 +117,14 @@ class Application:
                 pass
             # Plugin: start (phải start trước khi connect để wake word sẵn sàng)
             await self.plugins.start_all()
+            
+            # Khởi động Web Settings Dashboard (http://IP:8080)
+            try:
+                from src.network.web_settings import start_web_settings
+                await start_web_settings(port=8080)
+            except Exception as e:
+                logger.warning(f"Web Settings không khởi động được: {e}")
+            
             # Kết nối WebSocket trong background (không block startup)
             logger.info("Scheduling WebSocket connection in background...")
             self.spawn(self._auto_connect_protocol(), "auto-connect-protocol")
