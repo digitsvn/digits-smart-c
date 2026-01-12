@@ -143,12 +143,17 @@ install_desktop() {
     sudo apt-get install -y \
         python3-pyqt5 \
         python3-pyqt5.qtquick \
+        python3-pyqt5.qtmultimedia \
         qml-module-qtquick2 \
         qml-module-qtquick-controls \
         qml-module-qtquick-controls2 \
         qml-module-qtquick-layouts \
         qml-module-qtquick-window2 \
         qml-module-qtgraphicaleffects \
+        qml-module-qtmultimedia \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
         2>&1 | tee -a "$LOG_FILE"
     
     log "✓ Desktop Environment đã cài đặt"
