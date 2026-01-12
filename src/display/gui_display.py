@@ -342,9 +342,9 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             # nhưng hỗ trợ fallback cho các bản config cũ/khác key.
             window_size_mode = config_manager.get_config("SYSTEM_OPTIONS.WINDOW_SIZE_MODE", None)
             if window_size_mode in (None, "", "null"):
-                window_size_mode = config_manager.get_config("WINDOW_SIZE_MODE", "default")
+                window_size_mode = config_manager.get_config("WINDOW_SIZE_MODE", "screen_100")
             if window_size_mode in (None, "", "null"):
-                window_size_mode = "default"
+                window_size_mode = "screen_100"  # Mặc định fullscreen
 
             # Lấy kích thước màn hình (khu vực khả dụng, loại trừ thanh tác vụ, v.v.)
             desktop = QApplication.desktop()
@@ -606,11 +606,6 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         try:
             from src.views.settings import SettingsWindow
 
-            # Tạm dừng video để giải phóng camera cho phần xem trước trong cài đặt
-            was_video_running = self._video_worker is not None
-            if was_video_running:
-                self._stop_video()
-
             settings_window = SettingsWindow(self.root)
             result = settings_window.exec_()
             
@@ -620,11 +615,6 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
 
         except Exception as e:
             self.logger.error(f"Mở cửa sổ cài đặt thất bại: {e}", exc_info=True)
-            # Cố gắng khôi phục video nếu có lỗi
-            try:
-                self.reload_video_from_config()
-            except:
-                pass
 
     def reload_video_from_config(self) -> None:
         """Áp dụng ngay cấu hình video GUI (không cần restart app)."""

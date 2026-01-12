@@ -425,6 +425,34 @@ EOF
         log "✓ Cấu hình lxsession autostart"
     fi
     
+    # =========================================
+    # 5. Tạo Desktop Shortcut (icon trên Desktop)
+    # =========================================
+    DESKTOP_DIR="$HOME/Desktop"
+    [ ! -d "$DESKTOP_DIR" ] && DESKTOP_DIR="$HOME/Màn hình nền"
+    [ ! -d "$DESKTOP_DIR" ] && mkdir -p "$HOME/Desktop" && DESKTOP_DIR="$HOME/Desktop"
+    
+    cat > "$DESKTOP_DIR/SmartC.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=Smart C AI
+Comment=Trợ lý AI thông minh
+Exec=$INSTALL_DIR/run.sh
+Icon=$INSTALL_DIR/assets/icon.png
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+EOF
+    chmod +x "$DESKTOP_DIR/SmartC.desktop"
+    log "✓ Tạo Desktop Shortcut: $DESKTOP_DIR/SmartC.desktop"
+    
+    # =========================================
+    # 6. Copy icon vào system icons
+    # =========================================
+    mkdir -p "$HOME/.local/share/icons/hicolor/128x128/apps"
+    cp "$INSTALL_DIR/assets/icon.png" "$HOME/.local/share/icons/hicolor/128x128/apps/smartc.png" 2>/dev/null || true
+    log "✓ Icon đã copy vào ~/.local/share/icons"
+    
     log "✓ Autostart đã cấu hình cho tất cả Desktop Environments"
 }
 
