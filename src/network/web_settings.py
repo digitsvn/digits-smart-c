@@ -622,18 +622,29 @@ DASHBOARD_HTML = """
         // ========== WIFI ==========
         async function scanWifi() {
             document.getElementById('wifiList').innerHTML = '<option>Đang quét...</option>';
+            document.getElementById('currentWifi').textContent = 'Đang kiểm tra...';
             try {
                 const resp = await fetch('/api/wifi/scan');
                 const data = await resp.json();
                 const select = document.getElementById('wifiList');
                 select.innerHTML = '';
-                (data.networks || []).forEach(n => {
-                    const opt = document.createElement('option');
-                    opt.value = n.ssid;
-                    opt.textContent = `${n.ssid} (${n.signal}%)`;
-                    select.appendChild(opt);
-                });
-                document.getElementById('currentWifi').textContent = data.current || 'Không kết nối';
+                if (data.networks && data.networks.length > 0) {
+                    data.networks.forEach(n => {
+                        const opt = document.createElement('option');
+                        opt.value = n.ssid;
+                        opt.textContent = `${n.ssid} (${n.signal}dBm)`;
+                        select.appendChild(opt);
+                    });
+                } else {
+                    select.innerHTML = '<option>Không tìm thấy mạng</option>';
+                }
+                
+                // Hiển thị mạng hiện tại + IP
+                if (data.current) {
+                    document.getElementById('currentWifi').textContent = `${data.current} (${data.ip || 'N/A'})`;
+                } else {
+                    document.getElementById('currentWifi').textContent = data.ip ? `Ethernet (${data.ip})` : 'Không kết nối';
+                }
             } catch (e) {
                 showStatus('wifiStatus', 'error', 'Quét thất bại');
             }
@@ -1026,25 +1037,55 @@ class WebSettingsServer:
     async def _handle_wifi_scan(self, request):
         """Quét mạng WiFi."""
         try:
-            from src.network.wifi_manager import WiFiManager
-            wifi = WiFiManager()
-            networks = wifi.scan_networks()
-            current = wifi.get_current_ssid()
+            # Lấy mạng hiện tại
+            current_ssid = None
+            current_ip = self._get_ip()
             
-            network_list = []
-            for n in networks[:15]:  # Max 15 networks
-                network_list.append({
-                    "ssid": n.get("ssid", "Unknown"),
-                    "signal": n.get("signal", 0),
-                })
+            try:
+                result = subprocess.run(
+                    ["iwgetid", "-r"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    current_ssid = result.stdout.strip()
+            except Exception:
+                pass
+            
+            # Quét mạng khả dụng
+            networks = []
+            try:
+                result = subprocess.run(
+                    ["sudo", "iwlist", "wlan0", "scan"],
+                    capture_output=True, text=True, timeout=15
+                )
+                if result.returncode == 0:
+                    import re
+                    # Parse ESSID từ output
+                    essids = re.findall(r'ESSID:"([^"]*)"', result.stdout)
+                    signals = re.findall(r'Signal level=(-?\d+)', result.stdout)
+                    
+                    seen = set()
+                    for i, ssid in enumerate(essids):
+                        if ssid and ssid not in seen:
+                            seen.add(ssid)
+                            signal = int(signals[i]) if i < len(signals) else 0
+                            networks.append({"ssid": ssid, "signal": signal})
+            except Exception as e:
+                logger.warning(f"WiFi scan failed: {e}")
             
             return web.json_response({
-                "networks": network_list,
-                "current": current,
+                "networks": networks[:15],
+                "current": current_ssid,
+                "ip": current_ip,
             })
         except Exception as e:
             logger.error(f"WiFi scan error: {e}")
-            return web.json_response({"networks": [], "current": None, "error": str(e)})
+            return web.json_response({
+                "networks": [], 
+                "current": None, 
+                "ip": self._get_ip(),
+                "error": str(e)
+            })
     
     async def _handle_wifi_connect(self, request):
         """Kết nối WiFi."""
