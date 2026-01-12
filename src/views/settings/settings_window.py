@@ -212,8 +212,6 @@ class SettingsWindow(QDialog):
             if self.wake_word_tab:
                 wake_word_config = self.wake_word_tab.get_config_data()
                 all_config_data.update(wake_word_config)
-                # Lưu file từ đánh thức
-                self.wake_word_tab.save_keywords()
 
             # Cấu hình nền video
             if self.video_bg_tab:
