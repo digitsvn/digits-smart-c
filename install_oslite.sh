@@ -154,6 +154,10 @@ install_desktop() {
         gstreamer1.0-plugins-good \
         gstreamer1.0-plugins-bad \
         gstreamer1.0-plugins-ugly \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-qt5 \
+        gstreamer1.0-libav \
+        libqt5multimedia5-plugins \
         2>&1 | tee -a "$LOG_FILE"
     
     log "✓ Desktop Environment đã cài đặt"
