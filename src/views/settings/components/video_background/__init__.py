@@ -141,7 +141,7 @@ class VideoBackgroundWidget(QWidget):
             self,
             "Chọn file video",
             start_dir,
-            "Video Files (*.mp4 *.webm *.mkv *.avi);;All Files (*)"
+            "Video/Animation Files (*.mp4 *.webp *.gif *.webm *.mkv);;All Files (*)"
         )
         if file_path:
             # Convert to relative path if inside project
@@ -162,7 +162,12 @@ class VideoBackgroundWidget(QWidget):
             self.video_list_label.setText("Không tìm thấy thư mục assets/videos/")
             return
 
-        videos = list(videos_dir.glob("*.mp4")) + list(videos_dir.glob("*.webm"))
+        videos = (
+            list(videos_dir.glob("*.mp4")) + 
+            list(videos_dir.glob("*.webm")) +
+            list(videos_dir.glob("*.webp")) +
+            list(videos_dir.glob("*.gif"))
+        )
         
         if not videos:
             self.video_list_label.setText("Không có video trong assets/videos/")
