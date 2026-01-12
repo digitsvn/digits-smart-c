@@ -18,6 +18,7 @@ Rectangle {
     signal settingsButtonClicked()
     // Title bar signals
     signal titleMinimize()
+    signal titleFullscreen()
     signal titleClose()
     signal titleDragStart(real mouseX, real mouseY)
     signal titleDragMoveTo(real mouseX, real mouseY)
@@ -135,12 +136,32 @@ Rectangle {
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 8
+                
+                // Minimize button
                 Rectangle {
                     width: 28; height: 28; radius: 6
                     color: "#20000000"
                     Text { anchors.centerIn: parent; text: "–"; font.pixelSize: 16; color: "#ffffff" }
                     MouseArea { anchors.fill: parent; onClicked: root.titleMinimize() }
                 }
+                
+                // Fullscreen toggle button
+                Rectangle {
+                    width: 28; height: 28; radius: 6
+                    color: "#20000000"
+                    Text { 
+                        anchors.centerIn: parent
+                        text: "⛶"  // Fullscreen symbol
+                        font.pixelSize: 14
+                        color: "#ffffff" 
+                    }
+                    MouseArea { 
+                        anchors.fill: parent
+                        onClicked: root.titleFullscreen()
+                    }
+                }
+                
+                // Close button
                 Rectangle {
                     width: 28; height: 28; radius: 6
                     color: "#E0FF0000"

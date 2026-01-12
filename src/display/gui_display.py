@@ -524,6 +524,7 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         # Bản đồ tín hiệu điều khiển tiêu đề
         titlebar_signals = {
             "titleMinimize": self._minimize_window,
+            "titleFullscreen": self._toggle_fullscreen,
             "titleClose": self._quit_application,
             "titleDragStart": self._on_title_drag_start,
             "titleDragMoveTo": self._on_title_drag_move,
@@ -792,6 +793,24 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         """
         if self.root:
             self.root.showMinimized()
+
+    def _toggle_fullscreen(self):
+        """
+        Chuyển đổi chế độ toàn màn hình.
+        """
+        if not self.root:
+            return
+        
+        if self.root.isFullScreen():
+            # Thoát fullscreen
+            self.root.showNormal()
+            self._is_fullscreen = False
+            self.logger.debug("Đã thoát chế độ toàn màn hình")
+        else:
+            # Vào fullscreen
+            self.root.showFullScreen()
+            self._is_fullscreen = True
+            self.logger.debug("Đã vào chế độ toàn màn hình")
 
     def _quit_application(self):
         """

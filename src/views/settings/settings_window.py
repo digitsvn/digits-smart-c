@@ -181,19 +181,13 @@ class SettingsWindow(QDialog):
                 except Exception as e:
                     self.logger.warning(f"Failed to write first-run marker: {e}")
 
-                # Hiển thị lưu thành công và nhắc khởi động lại
-                reply = QMessageBox.question(
+                # Chỉ cần thông báo, video tự reload không cần restart
+                QMessageBox.information(
                     self,
                     "Lưu cấu hình thành công",
-                    "Cấu hình đã được lưu thành công!\n\nCần khởi động lại phần mềm để áp dụng thay đổi.\n\nKhởi động lại ngay bây giờ?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No,
+                    "Cấu hình đã được lưu!\n\n• Video nền: Áp dụng ngay\n• Từ đánh thức: Cần khởi động lại",
                 )
-
-                if reply == QMessageBox.Yes:
-                    self._restart_application()
-                else:
-                    self.accept()
+                self.accept()
             else:
                 QMessageBox.warning(self, "Lỗi", "Lưu cấu hình thất bại, vui lòng kiểm tra giá trị đã nhập.")
 
