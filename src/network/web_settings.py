@@ -1128,20 +1128,51 @@ class WebSettingsServer:
             return web.json_response({"success": False, "message": str(e)})
     
     async def _handle_system_update(self, request):
-        """Kiểm tra và cập nhật."""
+        """Kiểm tra và cập nhật từ GitHub."""
         try:
-            result = subprocess.run(
-                ["git", "-C", str(get_project_root()), "pull", "--ff-only"],
+            project_root = str(get_project_root())
+            
+            # Fetch trước để check có update không
+            fetch_result = subprocess.run(
+                ["git", "-C", project_root, "fetch", "origin"],
                 capture_output=True, text=True, timeout=30
             )
-            if "Already up to date" in result.stdout:
-                return web.json_response({"success": True, "message": "Đã là phiên bản mới nhất!"})
-            elif result.returncode == 0:
-                return web.json_response({"success": True, "message": "Đã cập nhật! Restart để áp dụng."})
+            
+            # Check xem có commits mới không
+            status_result = subprocess.run(
+                ["git", "-C", project_root, "status", "-uno"],
+                capture_output=True, text=True, timeout=10
+            )
+            
+            if "Your branch is up to date" in status_result.stdout:
+                return web.json_response({"success": True, "message": "✅ Đã là phiên bản mới nhất!"})
+            
+            # Có update -> pull
+            pull_result = subprocess.run(
+                ["git", "-C", project_root, "pull", "--ff-only"],
+                capture_output=True, text=True, timeout=60
+            )
+            
+            if pull_result.returncode == 0:
+                # Đếm số files thay đổi
+                lines = pull_result.stdout.strip().split('\n')
+                return web.json_response({
+                    "success": True, 
+                    "message": f"✅ Đã cập nhật! Nhấn Restart để áp dụng."
+                })
             else:
-                return web.json_response({"success": False, "message": "Cập nhật thất bại"})
+                error_msg = pull_result.stderr or pull_result.stdout or "Unknown error"
+                logger.error(f"Git pull failed: {error_msg}")
+                return web.json_response({
+                    "success": False, 
+                    "message": f"❌ Lỗi: {error_msg[:100]}"
+                })
+                
+        except subprocess.TimeoutExpired:
+            return web.json_response({"success": False, "message": "⏱️ Timeout - kết nối chậm"})
         except Exception as e:
-            return web.json_response({"success": False, "message": str(e)})
+            logger.error(f"Update error: {e}")
+            return web.json_response({"success": False, "message": f"❌ Lỗi: {str(e)}"})
     
     async def _handle_restart(self, request):
         """Restart app."""
