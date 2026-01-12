@@ -1,17 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
-
-// Try to load QtMultimedia (optional - for video background)
-// If not installed, app still works with emotion display
-Loader {
-    id: qtMultimediaLoader
-    source: "VideoBackground.qml"
-    onStatusChanged: {
-        if (status === Loader.Error) {
-            console.log("QtMultimedia not available, using emotion display only")
-        }
-    }
-}
+import QtMultimedia 5.15
 
 Rectangle {
     id: root
@@ -39,17 +28,21 @@ Rectangle {
         id: bgLayer
         anchors.fill: parent
 
-        // Video Background Loader (only if QtMultimedia available)
-        Loader {
-            id: videoLoader
+        // Video Background (hardware accelerated)
+        Video {
+            id: videoPlayer
             anchors.fill: parent
-            active: displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
-            source: active ? "VideoBackground.qml" : ""
+            visible: displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
+            source: visible ? displayModel.videoFilePath : ""
+            fillMode: VideoOutput.PreserveAspectCrop
+            autoPlay: true
+            loops: MediaPlayer.Infinite
+            muted: true  // Không phát âm thanh video nền
             
-            onStatusChanged: {
-                if (status === Loader.Error) {
-                    console.log("Video not available, falling back to emotion")
-                    active = false
+            onErrorChanged: {
+                if (error !== MediaPlayer.NoError) {
+                    console.log("Video error:", errorString)
+                    visible = false
                 }
             }
         }
@@ -58,7 +51,7 @@ Rectangle {
         Loader {
             id: emotionLoader
             anchors.fill: parent
-            visible: !videoLoader.active || videoLoader.status !== Loader.Ready
+            visible: !videoPlayer.visible
 
             sourceComponent: {
                 var path = displayModel ? displayModel.emotionPath : ""
