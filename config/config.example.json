@@ -23,18 +23,10 @@
     "KEYWORDS_THRESHOLD": 0.2,
     "NUM_TRAILING_BLANKS": 1
   },
-  "CAMERA": {
-    "camera_index": 0,
-    "frame_width": 640,
-    "frame_height": 480,
-    "fps": 30,
-    "VIDEO_SOURCE": "none",
-    "VIDEO_FILE_PATH": "",
-    "VIDEO_LOOP": true,
-    "VIDEO_FPS": 24,
-    "Local_VL_url": "",
-    "VLapi_key": "",
-    "models": "glm-4v-plus"
+  "VIDEO_BACKGROUND": {
+    "ENABLED": true,
+    "VIDEO_FILE_PATH": "assets/videos/HTMTECH.mp4",
+    "VIDEO_LOOP": true
   },
   "SHORTCUTS": {
     "ENABLED": true,
