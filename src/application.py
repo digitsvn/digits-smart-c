@@ -118,12 +118,25 @@ class Application:
             # Plugin: start (phải start trước khi connect để wake word sẵn sàng)
             await self.plugins.start_all()
             
-            # Khởi động Web Settings Dashboard (http://IP:8080)
+            # Check network và khởi động Web Settings/Hotspot
             try:
+                from src.network.network_status import is_connected, start_hotspot_if_no_network, get_current_ip
                 from src.network.web_settings import start_web_settings
-                await start_web_settings(port=8080)
+                
+                if is_connected():
+                    # Đã có mạng -> Start Web Settings Dashboard
+                    await start_web_settings(port=8080)
+                    ip = get_current_ip()
+                    logger.info(f"🌐 Web Settings: http://{ip}:8080")
+                else:
+                    # Chưa có mạng -> Bật Hotspot + Start Web Settings
+                    logger.info("Không có mạng, đang bật hotspot...")
+                    await start_hotspot_if_no_network()
+                    await start_web_settings(port=80)  # Port 80 cho captive portal
+                    logger.info("📶 Hotspot: SmartC-Setup | Pass: smartc123")
+                    logger.info("🌐 Cấu hình: http://192.168.4.1")
             except Exception as e:
-                logger.warning(f"Web Settings không khởi động được: {e}")
+                logger.warning(f"Network setup error: {e}")
             
             # Kết nối WebSocket trong background (không block startup)
             logger.info("Scheduling WebSocket connection in background...")

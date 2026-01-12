@@ -212,6 +212,27 @@ DASHBOARD_HTML = """
         </div>
         
         <div class="card">
+            <h2>🖥️ Chế Độ Màn Hình</h2>
+            <div class="form-group">
+                <label>Kích thước cửa sổ:</label>
+                <select id="windowMode">
+                    <option value="fullscreen">Toàn màn hình (100%)</option>
+                    <option value="window_90">Cửa sổ 90%</option>
+                    <option value="window_75">Cửa sổ 75%</option>
+                    <option value="window_50">Cửa sổ 50%</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="windowDecorations" style="width:auto; margin-right:8px;">
+                    Hiển thị nút điều khiển (thanh tiêu đề)
+                </label>
+            </div>
+            <button class="btn btn-primary" onclick="saveWindowMode()">💾 Lưu</button>
+            <div id="windowModeStatus"></div>
+        </div>
+        
+        <div class="card">
             <h2>📺 YouTube URL</h2>
             <div class="form-group">
                 <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
@@ -250,6 +271,84 @@ DASHBOARD_HTML = """
             </div>
             <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Loa</button>
             <div id="speakerStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>🎙️ Từ Đánh Thức (Wake Word)</h2>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="wakeWordEnabled" style="width:auto; margin-right:8px;">
+                    Bật Wake Word
+                </label>
+            </div>
+            <div class="form-group">
+                <label>Từ khóa:</label>
+                <select id="wakeWordKeyword">
+                    <option value="xiao_zhi">小智 (Xiaozhi)</option>
+                    <option value="hey_siri">Hey Siri</option>
+                    <option value="alexa">Alexa</option>
+                    <option value="ok_google">OK Google</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Độ nhạy: <span id="sensitivityValue">0.5</span></label>
+                <input type="range" id="wakeWordSensitivity" min="0.1" max="1.0" step="0.1" value="0.5"
+                    oninput="document.getElementById('sensitivityValue').textContent=this.value"
+                    style="width:100%; accent-color:#667eea;">
+            </div>
+            <button class="btn btn-primary" onclick="saveWakeWord()">💾 Lưu</button>
+            <div id="wakeWordStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>📶 WiFi</h2>
+            <div class="form-group">
+                <label>Mạng hiện tại:</label>
+                <div id="currentWifi" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    Loading...
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Mạng khả dụng:</label>
+                <select id="wifiList" style="margin-bottom: 10px;"></select>
+                <input type="password" id="wifiPassword" placeholder="Mật khẩu WiFi">
+            </div>
+            <button class="btn btn-primary" onclick="connectWifi()" style="margin-bottom: 10px;">📶 Kết nối</button>
+            <button class="btn btn-success" onclick="scanWifi()">🔄 Quét lại</button>
+            <div id="wifiStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>🌐 Hệ Thống</h2>
+            <div class="form-group">
+                <label>Ngôn ngữ:</label>
+                <select id="language">
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="en">English</option>
+                    <option value="zh">中文</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>OTA Server URL:</label>
+                <input type="text" id="otaUrl" placeholder="https://api.xiaozhi.me">
+            </div>
+            <div class="form-group">
+                <label>WebSocket URL:</label>
+                <input type="text" id="wsUrl" placeholder="wss://api.xiaozhi.me/websocket">
+            </div>
+            <div class="form-group">
+                <label>WebSocket Token:</label>
+                <input type="text" id="wsToken" placeholder="Token từ server">
+            </div>
+            <div class="form-group">
+                <label>Thông tin:</label>
+                <div id="systemInfo" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 13px;">
+                    Loading...
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="saveSystem()" style="margin-bottom: 10px;">💾 Lưu cấu hình</button>
+            <button class="btn btn-success" onclick="checkUpdate()">🔄 Kiểm tra cập nhật</button>
+            <div id="systemStatus"></div>
         </div>
         
         <div class="card">
@@ -372,6 +471,31 @@ DASHBOARD_HTML = """
             }
         }
         
+        async function loadWindowMode() {
+            try {
+                const resp = await fetch('/api/windowmode');
+                const data = await resp.json();
+                document.getElementById('windowMode').value = data.mode || 'fullscreen';
+                document.getElementById('windowDecorations').checked = data.decorations || false;
+            } catch (e) {}
+        }
+        
+        async function saveWindowMode() {
+            const mode = document.getElementById('windowMode').value;
+            const decorations = document.getElementById('windowDecorations').checked;
+            try {
+                const resp = await fetch('/api/windowmode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mode, decorations})
+                });
+                const data = await resp.json();
+                showStatus('windowModeStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('windowModeStatus', 'error', 'Lỗi kết nối');
+            }
+        }
+        
         async function saveYoutube() {
             const url = document.getElementById('youtubeUrl').value;
             try {
@@ -469,8 +593,129 @@ DASHBOARD_HTML = """
             }
         }
         
+        // ========== WAKE WORD ==========
+        async function loadWakeWord() {
+            try {
+                const resp = await fetch('/api/wakeword');
+                const data = await resp.json();
+                document.getElementById('wakeWordEnabled').checked = data.enabled;
+                document.getElementById('wakeWordKeyword').value = data.keyword || 'xiao_zhi';
+                document.getElementById('wakeWordSensitivity').value = data.sensitivity || 0.5;
+                document.getElementById('sensitivityValue').textContent = data.sensitivity || 0.5;
+            } catch (e) {}
+        }
+        
+        async function saveWakeWord() {
+            const enabled = document.getElementById('wakeWordEnabled').checked;
+            const keyword = document.getElementById('wakeWordKeyword').value;
+            const sensitivity = parseFloat(document.getElementById('wakeWordSensitivity').value);
+            try {
+                const resp = await fetch('/api/wakeword', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({enabled, keyword, sensitivity})
+                });
+                const data = await resp.json();
+                showStatus('wakeWordStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('wakeWordStatus', 'error', 'Lỗi kết nối');
+            }
+        }
+        
+        // ========== WIFI ==========
+        async function scanWifi() {
+            document.getElementById('wifiList').innerHTML = '<option>Đang quét...</option>';
+            try {
+                const resp = await fetch('/api/wifi/scan');
+                const data = await resp.json();
+                const select = document.getElementById('wifiList');
+                select.innerHTML = '';
+                (data.networks || []).forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n.ssid;
+                    opt.textContent = `${n.ssid} (${n.signal}%)`;
+                    select.appendChild(opt);
+                });
+                document.getElementById('currentWifi').textContent = data.current || 'Không kết nối';
+            } catch (e) {
+                showStatus('wifiStatus', 'error', 'Quét thất bại');
+            }
+        }
+        
+        async function connectWifi() {
+            const ssid = document.getElementById('wifiList').value;
+            const password = document.getElementById('wifiPassword').value;
+            if (!ssid) return showStatus('wifiStatus', 'error', 'Chọn mạng WiFi');
+            
+            showStatus('wifiStatus', 'success', 'Đang kết nối...');
+            try {
+                const resp = await fetch('/api/wifi/connect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ssid, password})
+                });
+                const data = await resp.json();
+                showStatus('wifiStatus', data.success ? 'success' : 'error', data.message);
+                if (data.success) scanWifi();
+            } catch (e) {
+                showStatus('wifiStatus', 'error', 'Kết nối thất bại');
+            }
+        }
+        
+        // ========== SYSTEM ==========
+        async function loadSystem() {
+            try {
+                const resp = await fetch('/api/system');
+                const data = await resp.json();
+                document.getElementById('language').value = data.language || 'vi';
+                document.getElementById('otaUrl').value = data.ota_url || '';
+                document.getElementById('wsUrl').value = data.ws_url || '';
+                document.getElementById('wsToken').value = data.ws_token || '';
+                document.getElementById('systemInfo').innerHTML = `
+                    <div>📦 Version: ${data.version || 'Unknown'}</div>
+                    <div>🖥️ Hostname: ${data.hostname || 'Unknown'}</div>
+                    <div>💾 Disk: ${data.disk_usage || 'Unknown'}</div>
+                    <div>🧠 RAM: ${data.ram_usage || 'Unknown'}</div>
+                    <div>🌡️ CPU Temp: ${data.cpu_temp || 'Unknown'}</div>
+                `;
+            } catch (e) {}
+        }
+        
+        async function saveSystem() {
+            const language = document.getElementById('language').value;
+            const otaUrl = document.getElementById('otaUrl').value;
+            const wsUrl = document.getElementById('wsUrl').value;
+            const wsToken = document.getElementById('wsToken').value;
+            try {
+                const resp = await fetch('/api/system', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({language, otaUrl, wsUrl, wsToken})
+                });
+                const data = await resp.json();
+                showStatus('systemStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('systemStatus', 'error', 'Lỗi kết nối');
+            }
+        }
+        
+        async function checkUpdate() {
+            showStatus('systemStatus', 'success', 'Đang kiểm tra...');
+            try {
+                const resp = await fetch('/api/system/update', {method: 'POST'});
+                const data = await resp.json();
+                showStatus('systemStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('systemStatus', 'error', 'Kiểm tra thất bại');
+            }
+        }
+        
         loadStatus();
         loadAudioDevices();
+        loadWakeWord();
+        loadWindowMode();
+        loadSystem();
+        scanWifi();
         setInterval(loadStatus, 30000);
     </script>
 </body>
@@ -514,9 +759,22 @@ class WebSettingsServer:
         self.app.router.add_post('/api/video', self._handle_video)
         self.app.router.add_post('/api/upload', self._handle_upload)
         self.app.router.add_post('/api/rotation', self._handle_rotation)
+        self.app.router.add_get('/api/windowmode', self._handle_windowmode_get)
+        self.app.router.add_post('/api/windowmode', self._handle_windowmode_post)
         self.app.router.add_post('/api/youtube', self._handle_youtube)
         self.app.router.add_get('/api/audio/devices', self._handle_audio_devices)
         self.app.router.add_post('/api/audio', self._handle_audio)
+        # Wake Word
+        self.app.router.add_get('/api/wakeword', self._handle_wakeword_get)
+        self.app.router.add_post('/api/wakeword', self._handle_wakeword_post)
+        # WiFi
+        self.app.router.add_get('/api/wifi/scan', self._handle_wifi_scan)
+        self.app.router.add_post('/api/wifi/connect', self._handle_wifi_connect)
+        # System
+        self.app.router.add_get('/api/system', self._handle_system_get)
+        self.app.router.add_post('/api/system', self._handle_system_post)
+        self.app.router.add_post('/api/system/update', self._handle_system_update)
+        # Control
         self.app.router.add_post('/api/restart', self._handle_restart)
         self.app.router.add_post('/api/reboot', self._handle_reboot)
     
@@ -646,6 +904,32 @@ class WebSettingsServer:
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
     
+    async def _handle_windowmode_get(self, request):
+        """Lấy chế độ màn hình."""
+        try:
+            mode = self.config.get_config("GUI.WINDOW_MODE", "fullscreen")
+            decorations = self.config.get_config("GUI.SHOW_DECORATIONS", False)
+            return web.json_response({
+                "mode": mode,
+                "decorations": decorations,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e)})
+    
+    async def _handle_windowmode_post(self, request):
+        """Lưu chế độ màn hình."""
+        try:
+            data = await request.json()
+            mode = data.get("mode", "fullscreen")
+            decorations = data.get("decorations", False)
+            
+            self.config.update_config("GUI.WINDOW_MODE", mode)
+            self.config.update_config("GUI.SHOW_DECORATIONS", decorations)
+            
+            return web.json_response({"success": True, "message": "Đã lưu! Restart app để áp dụng."})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
     async def _handle_audio_devices(self, request):
         """Lấy danh sách thiết bị âm thanh."""
         try:
@@ -700,6 +984,162 @@ class WebSettingsServer:
                 pass
             
             return web.json_response({"success": True, "message": "Đã lưu cài đặt âm thanh!"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    # ========== WAKE WORD ==========
+    async def _handle_wakeword_get(self, request):
+        """Lấy cài đặt wake word."""
+        try:
+            enabled = self.config.get_config("WAKE_WORD.ENABLED", True)
+            keyword = self.config.get_config("WAKE_WORD.KEYWORD", "xiao_zhi")
+            sensitivity = self.config.get_config("WAKE_WORD.SENSITIVITY", 0.5)
+            return web.json_response({
+                "enabled": enabled,
+                "keyword": keyword,
+                "sensitivity": sensitivity,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e)})
+    
+    async def _handle_wakeword_post(self, request):
+        """Lưu cài đặt wake word."""
+        try:
+            data = await request.json()
+            self.config.update_config("WAKE_WORD.ENABLED", data.get("enabled", True))
+            self.config.update_config("WAKE_WORD.KEYWORD", data.get("keyword", "xiao_zhi"))
+            self.config.update_config("WAKE_WORD.SENSITIVITY", data.get("sensitivity", 0.5))
+            return web.json_response({"success": True, "message": "Đã lưu! Cần restart app."})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    # ========== WIFI ==========
+    async def _handle_wifi_scan(self, request):
+        """Quét mạng WiFi."""
+        try:
+            from src.network.wifi_manager import WiFiManager
+            wifi = WiFiManager()
+            networks = wifi.scan_networks()
+            current = wifi.get_current_ssid()
+            
+            network_list = []
+            for n in networks[:15]:  # Max 15 networks
+                network_list.append({
+                    "ssid": n.get("ssid", "Unknown"),
+                    "signal": n.get("signal", 0),
+                })
+            
+            return web.json_response({
+                "networks": network_list,
+                "current": current,
+            })
+        except Exception as e:
+            logger.error(f"WiFi scan error: {e}")
+            return web.json_response({"networks": [], "current": None, "error": str(e)})
+    
+    async def _handle_wifi_connect(self, request):
+        """Kết nối WiFi."""
+        try:
+            data = await request.json()
+            ssid = data.get("ssid", "")
+            password = data.get("password", "")
+            
+            if not ssid:
+                return web.json_response({"success": False, "message": "Thiếu tên mạng"})
+            
+            from src.network.wifi_manager import WiFiManager
+            wifi = WiFiManager()
+            success = wifi.connect(ssid, password)
+            
+            if success:
+                return web.json_response({"success": True, "message": f"Đã kết nối {ssid}!"})
+            else:
+                return web.json_response({"success": False, "message": "Kết nối thất bại"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    # ========== SYSTEM ==========
+    async def _handle_system_get(self, request):
+        """Lấy thông tin hệ thống."""
+        try:
+            import psutil
+            import socket
+            
+            language = self.config.get_config("SYSTEM_OPTIONS.LANGUAGE", "vi")
+            ota_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", "")
+            ws_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.URL", "")
+            ws_token = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.TOKEN", "")
+            
+            # Version
+            version = "Unknown"
+            version_file = get_project_root() / "VERSION"
+            if version_file.exists():
+                version = version_file.read_text().strip()
+            
+            # System info
+            hostname = socket.gethostname()
+            disk = psutil.disk_usage('/')
+            disk_usage = f"{disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB"
+            ram = psutil.virtual_memory()
+            ram_usage = f"{ram.used // (1024**2)}MB / {ram.total // (1024**2)}MB"
+            
+            # CPU temp
+            cpu_temp = "N/A"
+            try:
+                temp_file = Path("/sys/class/thermal/thermal_zone0/temp")
+                if temp_file.exists():
+                    temp = int(temp_file.read_text().strip()) / 1000
+                    cpu_temp = f"{temp:.1f}°C"
+            except Exception:
+                pass
+            
+            return web.json_response({
+                "language": language,
+                "ota_url": ota_url,
+                "ws_url": ws_url,
+                "ws_token": ws_token,
+                "version": version,
+                "hostname": hostname,
+                "disk_usage": disk_usage,
+                "ram_usage": ram_usage,
+                "cpu_temp": cpu_temp,
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e)})
+    
+    async def _handle_system_post(self, request):
+        """Lưu cài đặt hệ thống."""
+        try:
+            data = await request.json()
+            self.config.update_config("SYSTEM_OPTIONS.LANGUAGE", data.get("language", "vi"))
+            
+            # OTA URL
+            if data.get("otaUrl"):
+                self.config.update_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", data.get("otaUrl"))
+            
+            # WebSocket
+            if data.get("wsUrl"):
+                self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.URL", data.get("wsUrl"))
+            if data.get("wsToken"):
+                self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET.TOKEN", data.get("wsToken"))
+            
+            return web.json_response({"success": True, "message": "Đã lưu! Cần restart app."})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_system_update(self, request):
+        """Kiểm tra và cập nhật."""
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(get_project_root()), "pull", "--ff-only"],
+                capture_output=True, text=True, timeout=30
+            )
+            if "Already up to date" in result.stdout:
+                return web.json_response({"success": True, "message": "Đã là phiên bản mới nhất!"})
+            elif result.returncode == 0:
+                return web.json_response({"success": True, "message": "Đã cập nhật! Restart để áp dụng."})
+            else:
+                return web.json_response({"success": False, "message": "Cập nhật thất bại"})
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
     
