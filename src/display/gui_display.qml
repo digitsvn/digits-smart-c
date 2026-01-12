@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtMultimedia 5.15
 
 Rectangle {
     id: root
@@ -27,11 +28,29 @@ Rectangle {
         id: bgLayer
         anchors.fill: parent
 
-        // Video View (Fullscreen)
+        // Native Video Player (Hardware accelerated)
+        Video {
+            id: videoPlayer
+            anchors.fill: parent
+            visible: displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
+            source: visible ? displayModel.videoFilePath : ""
+            fillMode: VideoOutput.PreserveAspectCrop
+            autoPlay: true
+            loops: MediaPlayer.Infinite
+            muted: true  // Không phát âm thanh video nền
+            
+            onErrorChanged: {
+                if (error !== MediaPlayer.NoError) {
+                    console.log("Video error:", errorString)
+                }
+            }
+        }
+
+        // Fallback: Image-based video (for camera/OpenCV)
         Image {
             id: videoView
             anchors.fill: parent
-            visible: displayModel && displayModel.videoFrameUrl && displayModel.videoFrameUrl.length > 0
+            visible: !videoPlayer.visible && displayModel && displayModel.videoFrameUrl && displayModel.videoFrameUrl.length > 0
             source: visible ? displayModel.videoFrameUrl : ""
             fillMode: Image.PreserveAspectCrop
             cache: false

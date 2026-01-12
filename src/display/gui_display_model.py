@@ -20,6 +20,7 @@ class GuiDisplayModel(QObject):
     modeTextChanged = pyqtSignal()
     autoModeChanged = pyqtSignal()
     videoFrameUrlChanged = pyqtSignal()
+    videoFilePathChanged = pyqtSignal()  # Path cho native video player
 
     # Tín hiệu thao tác người dùng
     manualButtonPressed = pyqtSignal()
@@ -43,6 +44,7 @@ class GuiDisplayModel(QObject):
         self._auto_mode = False  # Có đang ở chế độ tự động hay không
         self._is_connected = False
         self._video_frame_url = ""  # URL file:///... (kèm cache-bust query) cho khung video
+        self._video_file_path = ""  # Path file video để native player phát (hardware accelerated)
 
     # Thuộc tính văn bản trạng thái
     @pyqtProperty(str, notify=statusTextChanged)
@@ -131,6 +133,25 @@ class GuiDisplayModel(QObject):
         if self._video_frame_url != value:
             self._video_frame_url = value
             self.videoFrameUrlChanged.emit()
+
+    # Path file video cho native player (hardware accelerated)
+    @pyqtProperty(str, notify=videoFilePathChanged)
+    def videoFilePath(self):
+        return self._video_file_path
+
+    @videoFilePath.setter
+    def videoFilePath(self, value):
+        if self._video_file_path != value:
+            self._video_file_path = value
+            self.videoFilePathChanged.emit()
+
+    def update_video_file_path(self, path: str):
+        """Cập nhật path file video cho native player."""
+        from PyQt5.QtCore import QUrl
+        if path:
+            self.videoFilePath = QUrl.fromLocalFile(path).toString()
+        else:
+            self.videoFilePath = ""
 
     # Phương pháp tiện ích
     def update_status(self, status: str, connected: bool):

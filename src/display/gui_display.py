@@ -345,8 +345,8 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         """Đọc cấu hình CAMERA.VIDEO_SOURCE để bật video trong GUI.
 
         - none: tắt video (hiển thị emotion như cũ)
-        - camera: lấy camera_index
-        - file: đọc CAMERA.VIDEO_FILE_PATH và loop theo CAMERA.VIDEO_LOOP
+        - camera: dùng OpenCV với camera_index (cần xử lý frame)
+        - file: dùng native QML Video player (hardware accelerated, mượt hơn)
         """
         from src.utils.config_manager import ConfigManager
         from src.utils.resource_finder import get_project_root
@@ -357,19 +357,31 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
 
         if source not in ("camera", "file"):
             self.display_model.update_video_frame_url("")
+            self.display_model.update_video_file_path("")
             self._stop_video()
             return
 
         file_path = str(camera_cfg.get("VIDEO_FILE_PATH", "") or "")
+        
+        # === VIDEO FILE: Dùng native QML Video player (hardware accelerated) ===
         if source == "file":
             if file_path and not os.path.isabs(file_path):
                 file_path = str(get_project_root() / file_path)
             if not file_path or not Path(file_path).exists():
                 self.logger.warning("VIDEO_SOURCE=file nhưng VIDEO_FILE_PATH không hợp lệ; tắt video")
                 self.display_model.update_video_frame_url("")
+                self.display_model.update_video_file_path("")
                 self._stop_video()
                 return
 
+            # Dùng native video player - mượt mà, có hardware acceleration
+            self.logger.info(f"Sử dụng native video player cho: {file_path}")
+            self._stop_video()
+            self.display_model.update_video_frame_url("")  # Tắt Image-based
+            self.display_model.update_video_file_path(file_path)  # Bật native Video
+            return
+
+        # === CAMERA: Dùng OpenCV (cần xử lý frame) ===
         loop = bool(camera_cfg.get("VIDEO_LOOP", True))
         fps = int(camera_cfg.get("VIDEO_FPS", camera_cfg.get("fps", 10) or 10))
 
@@ -381,6 +393,8 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         self._video_frame_file = Path(cache_dir) / "digits_video_frame.jpg"
 
         self._stop_video()
+        self.display_model.update_video_file_path("")  # Tắt native Video
+        
         self._video_worker = _VideoCaptureWorker(
             source=source,
             camera_index=camera_index,
