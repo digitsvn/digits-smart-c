@@ -44,7 +44,7 @@ Reviewed 5 recent commits focusing on documentation cleanup, file organization, 
 
 1. **install_oslite.sh:203** - Hardcoded GitHub URL
    - **Problem**: URL `https://github.com/your-repo/smartc-ai.git` là placeholder chưa được cập nhật
-   - **Suggestion**: Cập nhật thành URL thực tế: `https://github.com/nguyenduchoai/py-xiaozhi-pi.git`
+   - **Suggestion**: Cập nhật thành URL thực tế: `https://github.com/digitsvn/digits-smart-c.git`
 
 2. **src/network/wifi_manager.py:231** - Potential Event Loop Issue
    - **Problem**: `asyncio.get_event_loop().run_until_complete()` trong sync function có thể gây conflict với existing event loop

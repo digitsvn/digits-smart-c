@@ -143,7 +143,7 @@ install_app() {
             cd "$INSTALL_DIR"
             git pull origin main 2>/dev/null || true
         else
-            git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git "$INSTALL_DIR" || {
+            git clone https://github.com/digitsvn/digits-smart-c.git "$INSTALL_DIR" || {
                 echo -e "${RED}❌ Không thể clone repo${NC}"
                 return 1
             }

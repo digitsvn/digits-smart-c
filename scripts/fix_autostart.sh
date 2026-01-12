@@ -20,7 +20,7 @@ fi
 if [ ! -d "$INSTALL_DIR" ]; then
     echo -e "${YELLOW}❌ Không tìm thấy thư mục cài đặt Smart C AI${NC}"
     echo "Vui lòng chạy installer trước:"
-    echo "  git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits"
+    echo "  git clone https://github.com/digitsvn/digits-smart-c.git ~/.digits"
     echo "  cd ~/.digits && bash install_oslite.sh"
     exit 1
 fi

@@ -2,7 +2,7 @@
 
 > Ứng dụng trợ lý AI thông minh với voice interaction, wake word detection và WiFi provisioning cho Raspberry Pi OS Lite.
 
-[![GitHub](https://img.shields.io/badge/GitHub-py--xiaozhi--pi-blue)](https://github.com/nguyenduchoai/py-xiaozhi-pi)
+[![GitHub](https://img.shields.io/badge/GitHub-digits--smart--c-blue)](https://github.com/digitsvn/digits-smart-c)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -34,14 +34,14 @@
 sudo apt update && sudo apt install git -y
 
 # Clone và cài đặt
-git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
+git clone https://github.com/digitsvn/digits-smart-c.git ~/.digits
 cd ~/.digits && bash install_oslite.sh
 ```
 
 ### Cài Đặt Tối Giản (Không GUI - Nhẹ Hơn 80%)
 
 ```bash
-git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
+git clone https://github.com/digitsvn/digits-smart-c.git ~/.digits
 cd ~/.digits && bash install_minimal.sh
 ```
 

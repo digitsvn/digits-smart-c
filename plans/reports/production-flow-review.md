@@ -243,7 +243,7 @@ WantedBy=multi-user.target
 ```bash
 # Clone và cài đặt trên Pi mới
 sudo apt update && sudo apt install git -y
-git clone https://github.com/nguyenduchoai/py-xiaozhi-pi.git ~/.digits
+git clone https://github.com/digitsvn/digits-smart-c.git ~/.digits
 cd ~/.digits
 bash install_oslite.sh
 sudo reboot
