@@ -216,17 +216,13 @@ DASHBOARD_HTML = """
             <div class="form-group">
                 <label>Kích thước cửa sổ:</label>
                 <select id="windowMode">
-                    <option value="fullscreen">Toàn màn hình (100%)</option>
-                    <option value="window_90">Cửa sổ 90%</option>
-                    <option value="window_75">Cửa sổ 75%</option>
-                    <option value="window_50">Cửa sổ 50%</option>
+                    <option value="screen_100">Toàn màn hình (100%)</option>
+                    <option value="screen_75">Cửa sổ 75%</option>
+                    <option value="fullhd">Full HD (1920x1080)</option>
+                    <option value="hd">HD (1280x720)</option>
+                    <option value="vertical_916">Dọc 9:16</option>
+                    <option value="default">Tự động</option>
                 </select>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="windowDecorations" style="width:auto; margin-right:8px;">
-                    Hiển thị nút điều khiển (thanh tiêu đề)
-                </label>
             </div>
             <button class="btn btn-primary" onclick="saveWindowMode()">💾 Lưu</button>
             <div id="windowModeStatus"></div>
@@ -474,19 +470,17 @@ DASHBOARD_HTML = """
             try {
                 const resp = await fetch('/api/windowmode');
                 const data = await resp.json();
-                document.getElementById('windowMode').value = data.mode || 'fullscreen';
-                document.getElementById('windowDecorations').checked = data.decorations || false;
+                document.getElementById('windowMode').value = data.mode || 'screen_100';
             } catch (e) {}
         }
         
         async function saveWindowMode() {
             const mode = document.getElementById('windowMode').value;
-            const decorations = document.getElementById('windowDecorations').checked;
             try {
                 const resp = await fetch('/api/windowmode', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({mode, decorations})
+                    body: JSON.stringify({mode})
                 });
                 const data = await resp.json();
                 showStatus('windowModeStatus', data.success ? 'success' : 'error', data.message);
@@ -924,11 +918,12 @@ class WebSettingsServer:
     async def _handle_windowmode_get(self, request):
         """Lấy chế độ màn hình."""
         try:
-            mode = self.config.get_config("GUI.WINDOW_MODE", "fullscreen")
-            decorations = self.config.get_config("GUI.SHOW_DECORATIONS", False)
+            # Đọc từ SYSTEM_OPTIONS.WINDOW_SIZE_MODE (đúng với gui_display.py)
+            mode = self.config.get_config("SYSTEM_OPTIONS.WINDOW_SIZE_MODE", "screen_100")
+            if mode in (None, "", "null"):
+                mode = "screen_100"
             return web.json_response({
                 "mode": mode,
-                "decorations": decorations,
             })
         except Exception as e:
             return web.json_response({"error": str(e)})
@@ -937,13 +932,15 @@ class WebSettingsServer:
         """Lưu chế độ màn hình."""
         try:
             data = await request.json()
-            mode = data.get("mode", "fullscreen")
-            decorations = data.get("decorations", False)
+            mode = data.get("mode", "screen_100")
             
-            self.config.update_config("GUI.WINDOW_MODE", mode)
-            self.config.update_config("GUI.SHOW_DECORATIONS", decorations)
+            # Lưu vào SYSTEM_OPTIONS.WINDOW_SIZE_MODE (đúng với gui_display.py)
+            result = self.config.update_config("SYSTEM_OPTIONS.WINDOW_SIZE_MODE", mode)
             
-            return web.json_response({"success": True, "message": "Đã lưu! Restart app để áp dụng."})
+            if result:
+                return web.json_response({"success": True, "message": "Đã lưu! Restart app để áp dụng."})
+            else:
+                return web.json_response({"success": False, "message": "Lỗi ghi config!"})
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
     
