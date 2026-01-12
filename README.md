@@ -45,9 +45,15 @@ bash install_oslite.sh
 
 ### 🔄 Update Cho Pi Đang Chạy
 
+**Bản mới (có update.sh):**
 ```bash
 cd ~/.digits
 bash update.sh
+```
+
+**Bản cũ (chưa có update.sh) - 1 lệnh duy nhất:**
+```bash
+cd ~/.digits && git pull && chmod +x *.sh scripts/*.sh 2>/dev/null; echo "✅ Đã cập nhật!"
 ```
 
 Script sẽ tự động:
@@ -56,6 +62,19 @@ Script sẽ tự động:
 - Pull code mới từ GitHub
 - Khôi phục config
 - Khởi động lại app
+
+### ⚡ Auto-Update Khi Khởi Động (Tùy Chọn)
+
+Muốn Pi tự động cập nhật mỗi khi boot:
+```bash
+cd ~/.digits
+bash auto_update.sh --install
+```
+
+Gỡ bỏ auto-update:
+```bash
+bash auto_update.sh --uninstall
+```
 
 ---
 
