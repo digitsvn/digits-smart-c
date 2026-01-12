@@ -29,19 +29,43 @@ Rectangle {
         id: bgLayer
         anchors.fill: parent
 
-        // Video Background (hardware accelerated)
+        // Video/Animation Background
+        // Ưu tiên WebP/GIF (AnimatedImage - loop mượt hơn)
+        // Fallback sang Video cho MP4
+        
+        property bool isAnimatedImage: {
+            if (!displayModel || !displayModel.videoFilePath) return false
+            var path = displayModel.videoFilePath.toLowerCase()
+            return path.indexOf(".webp") !== -1 || path.indexOf(".gif") !== -1
+        }
+        
+        // AnimatedImage cho WebP/GIF (loop mượt, không giật)
+        AnimatedImage {
+            id: animatedBg
+            anchors.fill: parent
+            visible: bgLayer.isAnimatedImage && displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
+            source: visible ? displayModel.videoFilePath : ""
+            fillMode: Image.Stretch
+            playing: true
+            cache: true
+            
+            onStatusChanged: {
+                if (status === AnimatedImage.Ready) {
+                    console.log("AnimatedImage loaded:", source)
+                }
+            }
+        }
+        
+        // Video cho MP4 (có thể giật khi loop)
         Video {
             id: videoPlayer
             anchors.fill: parent
-            visible: displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
+            visible: !bgLayer.isAnimatedImage && displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
             source: visible ? displayModel.videoFilePath : ""
-            fillMode: VideoOutput.Stretch  // Stretch để full màn hình
+            fillMode: VideoOutput.Stretch
             autoPlay: true
             loops: MediaPlayer.Infinite
             muted: true
-            
-            // Không dùng onPositionChanged/seek để tránh chớp đen
-            // MediaPlayer.Infinite tự loop mượt
             
             onSourceChanged: {
                 if (source && source.length > 0) {
@@ -57,11 +81,11 @@ Rectangle {
             }
         }
 
-        // Emotion Loader (when video is not active)
+        // Emotion Loader (when video/animation is not active)
         Loader {
             id: emotionLoader
             anchors.fill: parent
-            visible: !videoPlayer.visible
+            visible: !videoPlayer.visible && !animatedBg.visible
 
             sourceComponent: {
                 var path = displayModel ? displayModel.emotionPath : ""
