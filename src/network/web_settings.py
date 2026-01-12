@@ -202,6 +202,38 @@ DASHBOARD_HTML = """
         </div>
         
         <div class="card">
+            <h2>🎤 Microphone</h2>
+            <div class="form-group">
+                <label>Thiết bị Mic:</label>
+                <select id="micDevice"></select>
+            </div>
+            <div class="form-group">
+                <label>Âm lượng: <span id="micVolumeValue">100</span>%</label>
+                <input type="range" id="micVolume" min="0" max="100" value="100" 
+                    oninput="document.getElementById('micVolumeValue').textContent=this.value"
+                    style="width:100%; accent-color:#667eea;">
+            </div>
+            <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Mic</button>
+            <div id="micStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>🔊 Loa / Speaker</h2>
+            <div class="form-group">
+                <label>Thiết bị Loa:</label>
+                <select id="speakerDevice"></select>
+            </div>
+            <div class="form-group">
+                <label>Âm lượng: <span id="speakerVolumeValue">80</span>%</label>
+                <input type="range" id="speakerVolume" min="0" max="100" value="80"
+                    oninput="document.getElementById('speakerVolumeValue').textContent=this.value"
+                    style="width:100%; accent-color:#667eea;">
+            </div>
+            <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Loa</button>
+            <div id="speakerStatus"></div>
+        </div>
+        
+        <div class="card">
             <h2>⚙️ Điều khiển</h2>
             <button class="btn btn-success" onclick="restartApp()" style="margin-bottom: 10px;">🔄 Restart App</button>
             <button class="btn btn-danger" onclick="rebootPi()">🔌 Reboot Pi</button>
@@ -300,6 +332,26 @@ DASHBOARD_HTML = """
             } catch (e) {}
         }
         
+        async function saveAudio() {
+            const micDevice = document.getElementById('micDevice').value;
+            const speakerDevice = document.getElementById('speakerDevice').value;
+            const micVolume = document.getElementById('micVolume').value;
+            const speakerVolume = document.getElementById('speakerVolume').value;
+            
+            try {
+                const resp = await fetch('/api/audio', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({micDevice, speakerDevice, micVolume, speakerVolume})
+                });
+                const data = await resp.json();
+                showStatus('micStatus', data.success ? 'success' : 'error', data.message);
+                showStatus('speakerStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('micStatus', 'error', 'Lỗi kết nối');
+            }
+        }
+        
         function showStatus(id, type, message) {
             const el = document.getElementById(id);
             el.className = 'status ' + type;
@@ -308,7 +360,45 @@ DASHBOARD_HTML = """
             setTimeout(() => el.style.display = 'none', 3000);
         }
         
+        // Populate audio devices
+        async function loadAudioDevices() {
+            try {
+                const resp = await fetch('/api/audio/devices');
+                const data = await resp.json();
+                
+                const micSelect = document.getElementById('micDevice');
+                const speakerSelect = document.getElementById('speakerDevice');
+                
+                micSelect.innerHTML = '';
+                speakerSelect.innerHTML = '';
+                
+                (data.input_devices || []).forEach((d, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = d;
+                    if (i == data.current_mic) opt.selected = true;
+                    micSelect.appendChild(opt);
+                });
+                
+                (data.output_devices || []).forEach((d, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = d;
+                    if (i == data.current_speaker) opt.selected = true;
+                    speakerSelect.appendChild(opt);
+                });
+                
+                document.getElementById('micVolume').value = data.mic_volume || 100;
+                document.getElementById('micVolumeValue').textContent = data.mic_volume || 100;
+                document.getElementById('speakerVolume').value = data.speaker_volume || 80;
+                document.getElementById('speakerVolumeValue').textContent = data.speaker_volume || 80;
+            } catch (e) {
+                console.error('Load audio devices failed:', e);
+            }
+        }
+        
         loadStatus();
+        loadAudioDevices();
         setInterval(loadStatus, 30000);
     </script>
 </body>
@@ -352,6 +442,8 @@ class WebSettingsServer:
         self.app.router.add_post('/api/video', self._handle_video)
         self.app.router.add_post('/api/rotation', self._handle_rotation)
         self.app.router.add_post('/api/youtube', self._handle_youtube)
+        self.app.router.add_get('/api/audio/devices', self._handle_audio_devices)
+        self.app.router.add_post('/api/audio', self._handle_audio)
         self.app.router.add_post('/api/restart', self._handle_restart)
         self.app.router.add_post('/api/reboot', self._handle_reboot)
     
@@ -391,11 +483,10 @@ class WebSettingsServer:
             data = await request.json()
             path = data.get("path", "")
             
-            self.config.set_config("VIDEO_BACKGROUND.ENABLED", bool(path))
-            self.config.set_config("VIDEO_BACKGROUND.SOURCE_TYPE", "file")
-            self.config.set_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", path)
-            self.config.set_config("VIDEO_BACKGROUND.YOUTUBE_URL", "")
-            self.config.save_config()
+            self.config.update_config("VIDEO_BACKGROUND.ENABLED", bool(path))
+            self.config.update_config("VIDEO_BACKGROUND.SOURCE_TYPE", "file")
+            self.config.update_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", path)
+            self.config.update_config("VIDEO_BACKGROUND.YOUTUBE_URL", "")
             
             # Reload video trong app
             self._reload_video()
@@ -410,11 +501,10 @@ class WebSettingsServer:
             data = await request.json()
             url = data.get("url", "")
             
-            self.config.set_config("VIDEO_BACKGROUND.ENABLED", bool(url))
-            self.config.set_config("VIDEO_BACKGROUND.SOURCE_TYPE", "youtube")
-            self.config.set_config("VIDEO_BACKGROUND.YOUTUBE_URL", url)
-            self.config.set_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", "")
-            self.config.save_config()
+            self.config.update_config("VIDEO_BACKGROUND.ENABLED", bool(url))
+            self.config.update_config("VIDEO_BACKGROUND.SOURCE_TYPE", "youtube")
+            self.config.update_config("VIDEO_BACKGROUND.YOUTUBE_URL", url)
+            self.config.update_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", "")
             
             self._reload_video()
             
@@ -428,13 +518,69 @@ class WebSettingsServer:
             data = await request.json()
             rotation = data.get("rotation", "normal")
             
-            self.config.set_config("SYSTEM_OPTIONS.SCREEN_ROTATION", rotation)
-            self.config.save_config()
+            self.config.update_config("SYSTEM_OPTIONS.SCREEN_ROTATION", rotation)
             
             # Apply xrandr
             self._apply_rotation(rotation)
             
             return web.json_response({"success": True, "message": f"Đã xoay màn hình: {rotation}"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_audio_devices(self, request):
+        """Lấy danh sách thiết bị âm thanh."""
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            
+            input_devices = []
+            output_devices = []
+            
+            for i, d in enumerate(devices):
+                if d['max_input_channels'] > 0:
+                    input_devices.append(f"{i}: {d['name']}")
+                if d['max_output_channels'] > 0:
+                    output_devices.append(f"{i}: {d['name']}")
+            
+            current_mic = self.config.get_config("AUDIO.INPUT_DEVICE_INDEX", 0)
+            current_speaker = self.config.get_config("AUDIO.OUTPUT_DEVICE_INDEX", 0)
+            mic_volume = self.config.get_config("AUDIO.MIC_VOLUME", 100)
+            speaker_volume = self.config.get_config("AUDIO.SPEAKER_VOLUME", 80)
+            
+            return web.json_response({
+                "input_devices": input_devices,
+                "output_devices": output_devices,
+                "current_mic": current_mic,
+                "current_speaker": current_speaker,
+                "mic_volume": mic_volume,
+                "speaker_volume": speaker_volume,
+            })
+        except Exception as e:
+            return web.json_response({"input_devices": [], "output_devices": [], "error": str(e)})
+    
+    async def _handle_audio(self, request):
+        """Lưu cài đặt âm thanh."""
+        try:
+            data = await request.json()
+            
+            mic_device = int(data.get("micDevice", 0))
+            speaker_device = int(data.get("speakerDevice", 0))
+            mic_volume = int(data.get("micVolume", 100))
+            speaker_volume = int(data.get("speakerVolume", 80))
+            
+            self.config.update_config("AUDIO.INPUT_DEVICE_INDEX", mic_device)
+            self.config.update_config("AUDIO.OUTPUT_DEVICE_INDEX", speaker_device)
+            self.config.update_config("AUDIO.MIC_VOLUME", mic_volume)
+            self.config.update_config("AUDIO.SPEAKER_VOLUME", speaker_volume)
+            
+            # Áp dụng volume ngay bằng amixer
+            try:
+                subprocess.run(["amixer", "set", "Capture", f"{mic_volume}%"], capture_output=True, timeout=5)
+                subprocess.run(["amixer", "set", "Master", f"{speaker_volume}%"], capture_output=True, timeout=5)
+            except Exception:
+                pass
+            
+            return web.json_response({"success": True, "message": "Đã lưu cài đặt âm thanh!"})
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
     
