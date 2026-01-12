@@ -811,16 +811,25 @@ class WebSettingsServer:
             data = await request.json()
             path = data.get("path", "")
             
-            self.config.update_config("VIDEO_BACKGROUND.ENABLED", bool(path))
-            self.config.update_config("VIDEO_BACKGROUND.SOURCE_TYPE", "file")
-            self.config.update_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", path)
-            self.config.update_config("VIDEO_BACKGROUND.YOUTUBE_URL", "")
+            logger.info(f"Saving video path: {path}")
+            logger.info(f"Config file: {self.config.config_file}")
+            
+            result1 = self.config.update_config("VIDEO_BACKGROUND.ENABLED", bool(path))
+            result2 = self.config.update_config("VIDEO_BACKGROUND.SOURCE_TYPE", "file")
+            result3 = self.config.update_config("VIDEO_BACKGROUND.VIDEO_FILE_PATH", path)
+            result4 = self.config.update_config("VIDEO_BACKGROUND.YOUTUBE_URL", "")
+            
+            logger.info(f"Save results: ENABLED={result1}, SOURCE_TYPE={result2}, PATH={result3}, YOUTUBE={result4}")
+            
+            if not all([result1, result2, result3, result4]):
+                return web.json_response({"success": False, "message": "Lỗi ghi config file!"})
             
             # Reload video trong app
             self._reload_video()
             
-            return web.json_response({"success": True, "message": "Đã lưu! Video sẽ áp dụng ngay."})
+            return web.json_response({"success": True, "message": "Đã lưu và áp dụng!"})
         except Exception as e:
+            logger.error(f"Save video failed: {e}", exc_info=True)
             return web.json_response({"success": False, "message": str(e)})
     
     async def _handle_upload(self, request):
