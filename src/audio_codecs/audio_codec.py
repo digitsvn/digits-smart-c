@@ -89,6 +89,10 @@ class AudioCodec:
         self._mic_distance = 8.0  # Default 8cm giữa 2 mic
         self._speaker_angle = 180.0  # Default loa ở phía sau
         
+        # Software gain cho MIC (nhân lên để tăng amplitude)
+        # I2S INMP441 có output thấp, cần gain ~8-16x
+        self._mic_gain = 12.0  # Tăng 12x, có thể điều chỉnh
+        
         # Debug logging
         self._last_log_time = 0
 
@@ -856,6 +860,14 @@ class AudioCodec:
                 audio_data = self._process_input_resampling(audio_data)
                 if audio_data is None:
                     return
+
+            # Apply software gain cho MIC (I2S INMP441 có output thấp)
+            if self._mic_gain > 1.0 and self._i2s_enabled:
+                # Chuyển sang float để tránh overflow
+                audio_float = audio_data.astype(np.float32) * self._mic_gain
+                # Clip để tránh vỡ tiếng (giới hạn trong range int16)
+                audio_float = np.clip(audio_float, -32768, 32767)
+                audio_data = audio_float.astype(np.int16)
 
             # DEBUG: Check for silence every 3 seconds
             now = time.time()
