@@ -315,14 +315,15 @@ class AudioCodec:
         try:
             hdmi_card = self._hdmi_device_name or "vc4hdmi0"
             
-            # aplay command: read raw PCM from stdin
-            # -D: device, -f: format, -r: sample rate, -c: channels
+            # aplay command với buffer nhỏ để giảm delay
+            # --buffer-size: microseconds (50000 = 50ms)
             cmd = [
                 "aplay",
                 "-D", f"plughw:CARD={hdmi_card}",
                 "-f", "S16_LE",  # Signed 16-bit Little Endian
-                "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),  # 24000
+                "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
                 "-c", "1",  # Mono
+                "--buffer-size", "50000",  # 50ms buffer để giảm delay
                 "-q",  # Quiet
                 "-"  # Read from stdin
             ]
@@ -333,6 +334,15 @@ class AudioCodec:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
+            
+            # Gửi silence ngắn để "warm up" pipeline
+            # Điều này giúp HDMI output sẵn sàng ngay khi có audio thật
+            try:
+                silence = b'\x00' * 4800  # ~50ms of silence at 16kHz mono
+                self._hdmi_aplay_process.stdin.write(silence)
+                self._hdmi_aplay_process.stdin.flush()
+            except Exception:
+                pass
             
             self._hdmi_use_aplay = True
             logger.info(f"🔊 HDMI aplay started: {' '.join(cmd)}")
