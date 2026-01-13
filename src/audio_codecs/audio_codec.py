@@ -334,7 +334,6 @@ class AudioCodec:
             )
             
             # Đợi ngắn để xem aplay có lỗi ngay không
-            import time
             time.sleep(0.1)
             if self._hdmi_aplay_process.poll() is not None:
                 # aplay đã chết - đọc lỗi
