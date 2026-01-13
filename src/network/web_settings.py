@@ -1519,38 +1519,88 @@ class WebSettingsServer:
             import sounddevice as sd
             import numpy as np
             
-            logger.info("Test MIC: Recording 3 seconds...")
+            # Lấy thông tin device hiện tại
+            audio_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
+            input_device_id = audio_config.get("input_device_id")
+            i2s_enabled = audio_config.get("i2s_enabled", False)
+            i2s_stereo = audio_config.get("i2s_stereo", False)
+            
+            # Lấy tên device
+            device_name = "Default"
+            channels = 1
+            try:
+                if input_device_id is not None:
+                    devices = sd.query_devices()
+                    if 0 <= input_device_id < len(devices):
+                        device_name = devices[input_device_id]['name']
+                        # Stereo nếu I2S stereo enabled
+                        if i2s_stereo and devices[input_device_id]['max_input_channels'] >= 2:
+                            channels = 2
+            except:
+                pass
+            
+            logger.info(f"Test MIC: Recording 3s from '{device_name}' (channels: {channels}, I2S: {i2s_enabled})")
             
             # Ghi âm 3 giây
             sample_rate = 16000
             duration = 3
-            recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='int16')
-            sd.wait()
+            
+            try:
+                recording = sd.rec(
+                    int(duration * sample_rate), 
+                    samplerate=sample_rate, 
+                    channels=channels, 
+                    dtype='int16',
+                    device=input_device_id
+                )
+                sd.wait()
+            except Exception as rec_err:
+                logger.error(f"Recording error: {rec_err}")
+                return web.json_response({
+                    "success": False, 
+                    "message": f"❌ Không thể ghi âm: {str(rec_err)}"
+                })
             
             # Kiểm tra có âm thanh không
-            max_amplitude = np.max(np.abs(recording))
-            avg_amplitude = np.mean(np.abs(recording))
+            if channels == 2:
+                # Stereo: hiện thông tin từng channel
+                max_left = np.max(np.abs(recording[:, 0]))
+                max_right = np.max(np.abs(recording[:, 1]))
+                max_amplitude = max(max_left, max_right)
+                avg_amplitude = np.mean(np.abs(recording))
+                channel_info = f"L:{max_left}, R:{max_right}"
+            else:
+                max_amplitude = np.max(np.abs(recording))
+                avg_amplitude = np.mean(np.abs(recording))
+                channel_info = "Mono"
             
-            logger.info(f"Test MIC: Max amplitude: {max_amplitude}, Avg: {avg_amplitude}")
+            logger.info(f"Test MIC: Max amplitude: {max_amplitude}, Avg: {avg_amplitude} ({channel_info})")
             
-            # Phát lại
+            # Phát lại (convert stereo to mono nếu cần)
             logger.info("Test MIC: Playing back...")
-            sd.play(recording, sample_rate)
+            if channels == 2:
+                playback = np.mean(recording, axis=1).astype('int16')
+            else:
+                playback = recording
+            sd.play(playback, sample_rate)
             sd.wait()
             
             if max_amplitude < 100:
                 return web.json_response({
                     "success": False, 
-                    "message": f"⚠️ Microphone quá yếu hoặc không hoạt động (max: {max_amplitude})"
+                    "message": f"⚠️ MIC yếu! Max: {max_amplitude} | Device: {device_name} | {channel_info}"
                 })
             
+            mic_type = "I2S INMP441" if i2s_enabled else "USB/Analog"
             return web.json_response({
                 "success": True, 
-                "message": f"✅ MIC OK! Đã ghi và phát lại. Max: {max_amplitude}, Avg: {int(avg_amplitude)}"
+                "message": f"✅ {mic_type} OK! Max: {max_amplitude}, Avg: {int(avg_amplitude)} | {channel_info} | {device_name}"
             })
             
         except Exception as e:
             logger.error(f"Test MIC error: {e}")
+            import traceback
+            traceback.print_exc()
             return web.json_response({"success": False, "message": f"❌ Lỗi: {str(e)}"})
     
     async def _handle_test_speaker(self, request):
