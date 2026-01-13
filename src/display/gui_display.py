@@ -219,6 +219,7 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         
         # Thử đọc config mới VIDEO_BACKGROUND
         video_cfg = cfg.get_config("VIDEO_BACKGROUND", {}) or {}
+        self.logger.info(f"[VIDEO] Config: {video_cfg}")
         
         # Fallback: đọc CAMERA config cũ nếu VIDEO_BACKGROUND không có
         if not video_cfg or not video_cfg.get("ENABLED"):
@@ -230,9 +231,11 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
                     "VIDEO_FILE_PATH": camera_cfg.get("VIDEO_FILE_PATH", ""),
                     "VIDEO_LOOP": camera_cfg.get("VIDEO_LOOP", True)
                 }
+                self.logger.info(f"[VIDEO] Fallback từ CAMERA config: {video_cfg}")
         
         # Kiểm tra có bật video không
         if not video_cfg.get("ENABLED"):
+            self.logger.info("[VIDEO] DISABLED - clearing video paths")
             self.display_model.update_video_frame_url("")
             self.display_model.update_video_file_path("")
             return
