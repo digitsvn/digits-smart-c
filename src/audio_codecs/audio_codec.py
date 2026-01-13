@@ -65,6 +65,11 @@ class AudioCodec:
         self.aec_processor = AECProcessor()
         self._aec_enabled = False
         
+        # Echo suppression: Mute mic khi đang phát và ngay sau khi phát xong
+        self._is_playing = False
+        self._playback_end_time = 0
+        self._echo_guard_duration = 0.5  # 500ms guard time sau khi ngừng phát
+        
         # Debug logging
         self._last_log_time = 0
 
@@ -477,6 +482,12 @@ class AudioCodec:
             return
 
         try:
+            # Echo Suppression: Bỏ qua input khi đang phát hoặc trong guard time
+            current_time = time.time()
+            if self._is_playing or (current_time - self._playback_end_time) < self._echo_guard_duration:
+                # Trả về silence thay vì thu âm thực
+                return
+            
             audio_data = indata.copy().flatten()
 
             # Lấy mẫu lại về 16kHz (nếu thiết bị không phải 16kHz)
@@ -590,6 +601,9 @@ class AudioCodec:
         try:
             # Lấy dữ liệu âm thanh từ hàng đợi phát
             audio_data = self._output_buffer.get_nowait()
+            
+            # Đánh dấu đang phát (cho echo suppression)
+            self._is_playing = True
 
             if len(audio_data) >= frames * AudioConfig.CHANNELS:
                 output_frames = audio_data[: frames * AudioConfig.CHANNELS]
@@ -606,16 +620,24 @@ class AudioCodec:
         except asyncio.QueueEmpty:
             # Xuất im lặng khi không có dữ liệu
             outdata.fill(0)
+            # Đánh dấu ngừng phát và lưu thời điểm
+            if self._is_playing:
+                self._is_playing = False
+                self._playback_end_time = time.time()
 
     def _output_callback_with_resample(self, outdata: np.ndarray, frames: int):
         """
         Phát lấy mẫu lại (24kHz -> Tỷ lệ mẫu thiết bị)
         """
+        had_data = False
         try:
             # Tiếp tục xử lý dữ liệu 24kHz để lấy mẫu lại
             while len(self._resample_output_buffer) < frames * AudioConfig.CHANNELS:
                 try:
                     audio_data = self._output_buffer.get_nowait()
+                    had_data = True
+                    # Đánh dấu đang phát
+                    self._is_playing = True
                     # Lấy mẫu lại 24kHz -> Tỷ lệ mẫu thiết bị
                     resampled_data = self.output_resampler.resample_chunk(
                         audio_data, last=False
@@ -637,6 +659,10 @@ class AudioCodec:
             else:
                 # Xuất im lặng khi không đủ dữ liệu
                 outdata.fill(0)
+                # Đánh dấu ngừng phát nếu không còn dữ liệu
+                if self._is_playing and not had_data:
+                    self._is_playing = False
+                    self._playback_end_time = time.time()
 
         except Exception as e:
             logger.warning(f"Xuất lấy mẫu lại thất bại: {e}")
