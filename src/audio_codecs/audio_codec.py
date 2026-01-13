@@ -96,7 +96,8 @@ class AudioCodec:
         
         # Audio write buffer - gom nhiều chunk nhỏ rồi write một lần
         self._hdmi_write_buffer = bytearray()
-        self._hdmi_write_threshold = 3200  # ~100ms audio @16kHz mono 16bit
+        self._hdmi_write_threshold = 640  # ~20ms audio @16kHz mono 16bit (nhỏ hơn để đảm bảo write)
+        self._hdmi_write_count = 0  # Đếm số lần write để debug
         
         # Beamforming processor for dual mic
         self.beamforming = BeamformingProcessor()
@@ -566,17 +567,28 @@ class AudioCodec:
         if self._hdmi_aplay_process and self._hdmi_aplay_process.stdin:
             try:
                 # Thêm vào buffer
-                self._hdmi_write_buffer.extend(audio_data.tobytes())
+                audio_bytes = audio_data.tobytes()
+                self._hdmi_write_buffer.extend(audio_bytes)
                 
-                # Chỉ write khi buffer đủ lớn (giảm syscalls)
-                if len(self._hdmi_write_buffer) >= self._hdmi_write_threshold:
+                # Write khi buffer đủ lớn HOẶC đây là write đầu tiên
+                should_write = (len(self._hdmi_write_buffer) >= self._hdmi_write_threshold or 
+                               (self._hdmi_write_count == 0 and len(self._hdmi_write_buffer) > 0))
+                
+                if should_write:
                     self._hdmi_aplay_process.stdin.write(bytes(self._hdmi_write_buffer))
                     self._hdmi_aplay_process.stdin.flush()
+                    self._hdmi_write_count += 1
+                    
+                    # Log đầu tiên để debug
+                    if self._hdmi_write_count <= 3:
+                        logger.debug(f"🔊 HDMI write #{self._hdmi_write_count}: {len(self._hdmi_write_buffer)} bytes")
+                    
                     self._hdmi_write_buffer.clear()
                     
             except BrokenPipeError:
                 logger.warning("HDMI aplay broken pipe, restarting...")
                 self._hdmi_write_buffer.clear()
+                self._hdmi_write_count = 0
                 self._stop_hdmi_aplay()
                 self._start_hdmi_aplay()
             except Exception as e:
