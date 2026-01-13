@@ -1503,25 +1503,41 @@ class WebSettingsServer:
             
             logger.info(f"Test Chat: Sending '{message}' to AI...")
             
-            # Thử gửi qua Application nếu có
+            # Thử gửi qua Application
             try:
                 from src.application import Application
                 app = Application._instance
                 
-                if app and hasattr(app, 'protocol') and app.protocol:
-                    # Gửi tin nhắn qua protocol
-                    await app.protocol.send_text(message)
-                    return web.json_response({
-                        "success": True,
-                        "response": "📤 Đã gửi tin nhắn đến AI! Xem phản hồi trên màn hình chính."
-                    })
-                else:
+                if not app:
                     return web.json_response({
                         "success": False,
-                        "message": "⚠️ Chưa kết nối với AI Server. Vui lòng khởi động lại app."
+                        "message": "⚠️ Application chưa khởi tạo. Vui lòng chờ app khởi động."
                     })
+                
+                # Kiểm tra kết nối
+                if not await app.connect_protocol():
+                    return web.json_response({
+                        "success": False,
+                        "message": "⚠️ Chưa kết nối với AI Server. Đang thử kết nối lại..."
+                    })
+                
+                # Cập nhật hiển thị user text
+                ui_plugin = app.plugins.get_plugin("ui") if hasattr(app, 'plugins') else None
+                if ui_plugin and hasattr(ui_plugin, 'display'):
+                    await ui_plugin.display.update_user_text(message)
+                
+                # Gửi tin nhắn như wake word detected (mô phỏng user nói)
+                await app.protocol.send_wake_word_detected(message)
+                
+                return web.json_response({
+                    "success": True,
+                    "response": "📤 Đã gửi tin nhắn đến AI! Xem phản hồi trên màn hình chính."
+                })
+                
             except Exception as e:
                 logger.error(f"Test Chat send error: {e}")
+                import traceback
+                traceback.print_exc()
                 return web.json_response({
                     "success": False,
                     "message": f"❌ Lỗi gửi tin nhắn: {str(e)}"
