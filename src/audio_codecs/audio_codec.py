@@ -1218,9 +1218,24 @@ class AudioCodec:
                 return
 
             # Nếu HDMI aplay được sử dụng, ghi trực tiếp vào aplay
-            if self._hdmi_use_aplay and self._hdmi_aplay_process:
-                self._write_hdmi_audio(audio_array)
-                self._is_playing = True
+            if self._hdmi_use_aplay:
+                if not self._hdmi_aplay_process:
+                    # aplay chưa có, thử start
+                    logger.info("🔊 HDMI aplay not running, starting...")
+                    self._start_hdmi_aplay()
+                
+                if self._hdmi_aplay_process:
+                    self._write_hdmi_audio(audio_array)
+                    self._is_playing = True
+                else:
+                    logger.warning("⚠️ Cannot write audio: aplay not available")
+            elif self._hdmi_audio:
+                # HDMI enabled nhưng aplay không active, thử khởi động lại
+                logger.info("🔊 HDMI enabled but aplay not active, starting...")
+                self._start_hdmi_aplay()
+                if self._hdmi_use_aplay and self._hdmi_aplay_process:
+                    self._write_hdmi_audio(audio_array)
+                    self._is_playing = True
             else:
                 # Đưa vào hàng đợi phát (sounddevice)
                 self._put_audio_data_safe(self._output_buffer, audio_array)
