@@ -403,6 +403,7 @@ DASHBOARD_HTML = """
         
         <div class="card">
             <h2>🧪 Test Thiết Bị</h2>
+            <div id="audioConfigInfo" style="background: #2d3748; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-family: monospace; font-size: 12px; color: #a0aec0;"></div>
             <div class="form-group">
                 <label>🎤 Test Microphone:</label>
                 <button class="btn btn-primary" onclick="testMic()" id="testMicBtn" style="margin-bottom: 10px;">🎤 Ghi âm 3s</button>
@@ -461,8 +462,34 @@ DASHBOARD_HTML = """
                     };
                     videoList.appendChild(btn);
                 });
+                
+                // Load audio config info for debug
+                loadAudioConfigInfo();
             } catch (e) {
                 console.error('Error loading status:', e);
+            }
+        }
+        
+        async function loadAudioConfigInfo() {
+            try {
+                const resp = await fetch('/api/audio/devices');
+                const data = await resp.json();
+                const info = document.getElementById('audioConfigInfo');
+                if (info) {
+                    const i2s = data.i2s_enabled ? '✅ I2S' : '❌ I2S';
+                    const stereo = data.i2s_stereo ? 'Stereo' : 'Mono';
+                    const beam = data.beamforming_enabled ? '✅ Beam' : '❌ Beam';
+                    const hdmi = data.hdmi_audio ? '✅ HDMI' : '❌ HDMI';
+                    
+                    info.innerHTML = `
+                        <b>📋 Config hiện tại:</b><br>
+                        🎤 MIC: ID=${data.config_input_id ?? 'auto'} | ${data.config_input_name || 'Default'}<br>
+                        🔊 LOA: ID=${data.config_output_id ?? 'auto'} | ${data.config_output_name || 'Default'}<br>
+                        ${i2s} ${stereo} | ${beam} | ${hdmi}
+                    `;
+                }
+            } catch (e) {
+                console.error('Error loading audio config:', e);
             }
         }
         
@@ -1224,7 +1251,7 @@ class WebSettingsServer:
             mic_volume = self.config.get_config("AUDIO.MIC_VOLUME", 100)
             speaker_volume = self.config.get_config("AUDIO.SPEAKER_VOLUME", 80)
             
-            # I2S settings
+            # I2S settings từ AUDIO_DEVICES
             audio_devices_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
             i2s_enabled = audio_devices_config.get("i2s_enabled", False)
             i2s_stereo = audio_devices_config.get("i2s_stereo", False)
@@ -1232,6 +1259,12 @@ class WebSettingsServer:
             mic_distance = audio_devices_config.get("mic_distance", 8.0)
             speaker_angle = audio_devices_config.get("speaker_angle", 180.0)
             hdmi_audio = audio_devices_config.get("hdmi_audio", False)
+            
+            # Device IDs từ config (quan trọng để biết app đang dùng device nào)
+            config_input_id = audio_devices_config.get("input_device_id")
+            config_output_id = audio_devices_config.get("output_device_id")
+            config_input_name = audio_devices_config.get("input_device_name", "")
+            config_output_name = audio_devices_config.get("output_device_name", "")
             
             return web.json_response({
                 "input_devices": input_devices,
@@ -1246,6 +1279,11 @@ class WebSettingsServer:
                 "mic_distance": mic_distance,
                 "speaker_angle": speaker_angle,
                 "hdmi_audio": hdmi_audio,
+                # Config info - cho debug
+                "config_input_id": config_input_id,
+                "config_output_id": config_output_id,
+                "config_input_name": config_input_name,
+                "config_output_name": config_output_name,
             })
         except Exception as e:
             return web.json_response({"input_devices": [], "output_devices": [], "error": str(e)})
