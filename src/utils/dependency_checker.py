@@ -15,10 +15,10 @@ logger = get_logger(__name__)
 
 
 # =========================================================================
-# DANH SÁCH DEPENDENCIES
+# DANH SÁCH DEPENDENCIES - SMART C AI
 # =========================================================================
 
-# APT packages cần thiết
+# APT packages cần thiết cho Raspberry Pi
 APT_PACKAGES = [
     # Audio
     ("pulseaudio", "pulseaudio"),
@@ -28,18 +28,65 @@ APT_PACKAGES = [
     # Media
     ("ffmpeg", "ffmpeg"),
     
-    # Display (cho GUI)
-    # ("xdotool", "xdotool"),
+    # Python build dependencies
+    ("python3-pip", "python3-pip"),
+    ("python3-dev", "python3-dev"),
+    
+    # PyQt5 dependencies (GUI)
+    ("", "python3-pyqt5"),
+    ("", "python3-pyqt5.qtmultimedia"),
+    ("", "libqt5multimedia5-plugins"),
+    ("", "gstreamer1.0-plugins-good"),
+    ("", "gstreamer1.0-plugins-bad"),
+    ("", "gstreamer1.0-plugins-ugly"),
+    
+    # OpenCV dependencies
+    ("", "libatlas-base-dev"),
+    ("", "libjasper-dev"),
+    ("", "libhdf5-dev"),
+    
+    # Audio libs
+    ("", "libportaudio2"),
+    ("", "libopus0"),
+    ("", "libopus-dev"),
+    
+    # Network
+    ("curl", "curl"),
+    ("wget", "wget"),
 ]
 
-# Python packages (pip)
+# Python packages từ requirements-pi.txt
 PIP_PACKAGES = [
-    "opuslib",
-    "sounddevice",
-    "numpy",
-    "aiohttp",
-    "websockets",
-    "qasync",
+    # === CORE (Bắt buộc) ===
+    "numpy>=1.20.0",
+    "sounddevice>=0.4.4",
+    "websockets>=11.0",
+    "aiohttp>=3.8.0",
+    
+    # === Wake Word Detection ===
+    "sherpa-onnx>=1.10.0",
+    
+    # === Audio Processing ===
+    "opuslib>=3.0.1",
+    "webrtcvad-wheels>=2.0.10",
+    "soxr>=0.3.0",
+    
+    # === Network & Protocol ===
+    "paho-mqtt>=2.0.0",
+    "requests>=2.28.0",
+    
+    # === Security ===
+    "cryptography>=40.0.0",
+    
+    # === Utilities ===
+    "colorlog>=6.0.0",
+    "psutil>=5.9.0",
+    "py-machineid>=0.6.0",
+    "python-dateutil>=2.8.0",
+    "pillow>=9.0.0",
+    
+    # === GUI ===
+    "qasync>=0.27.0",
 ]
 
 
@@ -112,10 +159,16 @@ def check_and_install_apt_dependencies() -> Tuple[int, int]:
     missing_packages = []
     
     for command, package in APT_PACKAGES:
-        if not check_command_exists(command):
+        # Nếu có command thì check command, không có thì check package trực tiếp
+        if command:
+            if not check_command_exists(command) and not check_apt_package_installed(package):
+                missing_packages.append(package)
+                logger.debug(f"📋 Missing: {package} (provides: {command})")
+        else:
+            # Không có command, chỉ check package
             if not check_apt_package_installed(package):
                 missing_packages.append(package)
-                logger.info(f"📋 Missing: {package} (provides: {command})")
+                logger.debug(f"📋 Missing: {package}")
     
     if not missing_packages:
         logger.info("✅ All apt dependencies already installed")
@@ -175,14 +228,19 @@ def check_and_install_pip_dependencies() -> Tuple[int, int]:
     """
     missing_packages = []
     
-    for package in PIP_PACKAGES:
-        if not check_pip_package(package):
-            missing_packages.append(package)
-            logger.info(f"📋 Missing pip: {package}")
+    for package_spec in PIP_PACKAGES:
+        # Extract package name từ spec (ví dụ: numpy>=1.20.0 -> numpy)
+        package_name = package_spec.split('>=')[0].split('==')[0].split('<')[0].split('>')[0]
+        
+        if not check_pip_package(package_name):
+            missing_packages.append(package_spec)
+            logger.debug(f"📋 Missing pip: {package_name}")
     
     if not missing_packages:
         logger.info("✅ All pip dependencies already installed")
         return (0, 0)
+    
+    logger.info(f"📦 Installing {len(missing_packages)} pip packages...")
     
     if install_pip_packages(missing_packages):
         return (len(missing_packages), 0)
