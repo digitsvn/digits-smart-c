@@ -1802,15 +1802,16 @@ class WebSettingsServer:
             frequency = 440  # A4 note
             
             t = np.linspace(0, duration, int(sample_rate * duration), False)
-            # Sine wave with fade in/out
-            beep = np.sin(2 * np.pi * frequency * t) * 0.5
+            # Sine wave with fade in/out - scale to int16 range
+            beep = np.sin(2 * np.pi * frequency * t) * 16000  # Scale for int16
             fade_samples = int(sample_rate * 0.05)
             beep[:fade_samples] *= np.linspace(0, 1, fade_samples)
             beep[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+            beep = beep.astype(np.int16)  # Use int16 for HDMI compatibility
             
             # Phát 3 beep
             for i in range(3):
-                sd.play(beep.astype(np.float32), sample_rate, device=output_device)
+                sd.play(beep, sample_rate, device=output_device)
                 sd.wait()
                 if i < 2:
                     import time
