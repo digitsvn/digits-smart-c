@@ -544,18 +544,48 @@ configure_audio() {
     log "BƯỚC 7: Cấu hình Audio"
     log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    # Tạo ALSA config để hỗ trợ USB MIC
+    # Tạo ALSA config với HDMI và Headphones support
     cat > "$HOME/.asoundrc" << 'EOF'
 # Smart C AI - ALSA Configuration
 
-# Default PCM device - headphones
+# Default PCM device - Detect HDMI first, fallback to Headphones
 pcm.!default {
+    type plug
+    slave.pcm {
+        @func refer
+        name {
+            @func concat
+            strings [
+                "cards."
+                {
+                    @func card_driver
+                    card 0
+                }
+                ".pcm.default:CARD=0"
+            ]
+        }
+    }
+}
+
+# HDMI Audio (vc4hdmi)
+pcm.hdmi {
+    type hw
+    card vc4hdmi0
+    device 0
+}
+
+ctl.hdmi {
+    type hw
+    card vc4hdmi0
+}
+
+# Headphones (3.5mm jack)
+pcm.headphones {
     type hw
     card Headphones
 }
 
-# Default control
-ctl.!default {
+ctl.headphones {
     type hw
     card Headphones
 }
@@ -566,19 +596,40 @@ pcm.usbmic {
     card Device
 }
 
-# Headphones alias
-pcm.headphones {
-    type hw
-    card Headphones
+# Plug wrapper for better compatibility
+pcm.hdmi_plug {
+    type plug
+    slave.pcm "hdmi"
+}
+
+pcm.headphones_plug {
+    type plug
+    slave.pcm "headphones"
 }
 EOF
     
-    # Set default volume
+    # Force HDMI audio on Raspberry Pi (thêm vào config.txt nếu cần)
+    CONFIG_FILE="/boot/firmware/config.txt"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        CONFIG_FILE="/boot/config.txt"
+    fi
+    
+    # Kiểm tra và thêm HDMI audio config
+    if ! grep -q "dtparam=audio=on" "$CONFIG_FILE" 2>/dev/null; then
+        echo "dtparam=audio=on" | sudo tee -a "$CONFIG_FILE" > /dev/null
+        log "✓ Enabled audio in config.txt"
+    fi
+    
+    # Set default volume cho cả Headphones và HDMI
     amixer set Master 80% unmute 2>/dev/null || true
     amixer set PCM 80% unmute 2>/dev/null || true
     amixer set Headphone 80% unmute 2>/dev/null || true
     
-    log "✓ Audio đã cấu hình"
+    # HDMI volume (nếu có)
+    amixer -c vc4hdmi0 set PCM 80% unmute 2>/dev/null || true
+    
+    log "✓ Audio đã cấu hình (HDMI + Headphones)"
+    log "📌 Để chuyển sang HDMI: Dùng Dashboard chọn thiết bị vc4hdmi"
 }
 
 # =============================================================================
