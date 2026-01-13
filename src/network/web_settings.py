@@ -429,8 +429,10 @@ DASHBOARD_HTML = """
         
         <div class="card">
             <h2>⚙️ Điều khiển</h2>
+            <button class="btn btn-primary" onclick="updateAndRestart()" style="margin-bottom: 10px;">🔄 Cập nhật & Restart</button>
             <button class="btn btn-success" onclick="restartApp()" style="margin-bottom: 10px;">🔄 Restart App</button>
             <button class="btn btn-danger" onclick="rebootPi()">🔌 Reboot Pi</button>
+            <div id="updateStatus" style="margin-top: 10px;"></div>
         </div>
     </div>
     
@@ -600,6 +602,29 @@ DASHBOARD_HTML = """
                 await fetch('/api/reboot', {method: 'POST'});
                 alert('Pi đang reboot...');
             } catch (e) {}
+        }
+        
+        async function updateAndRestart() {
+            if (!confirm('Cập nhật code từ Git và restart app?')) return;
+            const status = document.getElementById('updateStatus');
+            status.innerHTML = '⏳ Đang cập nhật...';
+            status.style.color = '#17a2b8';
+            
+            try {
+                const resp = await fetch('/api/update-restart', {method: 'POST'});
+                const data = await resp.json();
+                if (data.success) {
+                    status.innerHTML = '✅ ' + data.message;
+                    status.style.color = '#28a745';
+                    setTimeout(() => location.reload(), 5000);
+                } else {
+                    status.innerHTML = '❌ ' + data.message;
+                    status.style.color = '#dc3545';
+                }
+            } catch (e) {
+                status.innerHTML = '❌ Lỗi kết nối: ' + e.message;
+                status.style.color = '#dc3545';
+            }
         }
         
         // ========== TEST FUNCTIONS ==========
@@ -1004,6 +1029,7 @@ class WebSettingsServer:
         # Control
         self.app.router.add_post('/api/restart', self._handle_restart)
         self.app.router.add_post('/api/reboot', self._handle_reboot)
+        self.app.router.add_post('/api/update-restart', self._handle_update_restart)
         # Test
         self.app.router.add_post('/api/test/mic', self._handle_test_mic)
         self.app.router.add_post('/api/test/speaker', self._handle_test_speaker)
@@ -1616,6 +1642,71 @@ class WebSettingsServer:
         """Reboot Pi."""
         subprocess.Popen(["sudo", "reboot"])
         return web.json_response({"success": True, "message": "Đang reboot..."})
+    
+    async def _handle_update_restart(self, request):
+        """Update code từ Git và restart app."""
+        try:
+            import os
+            app_home = os.path.expanduser("~/.digits")
+            if not os.path.isdir(app_home):
+                app_home = os.path.expanduser("~/.xiaozhi")
+            
+            # Backup config
+            config_backup = "/tmp/smartc_config_backup"
+            os.makedirs(config_backup, exist_ok=True)
+            
+            config_file = os.path.join(app_home, "config/config.json")
+            if os.path.exists(config_file):
+                import shutil
+                shutil.copy(config_file, os.path.join(config_backup, "config.json"))
+                logger.info("Config backed up")
+            
+            # Git pull
+            result = subprocess.run(
+                ["git", "fetch", "origin", "main"],
+                cwd=app_home,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            result = subprocess.run(
+                ["git", "reset", "--hard", "origin/main"],
+                cwd=app_home,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                return web.json_response({
+                    "success": False,
+                    "message": f"Git update failed: {result.stderr}"
+                })
+            
+            # Restore config
+            backup_config = os.path.join(config_backup, "config.json")
+            if os.path.exists(backup_config):
+                import shutil
+                shutil.copy(backup_config, config_file)
+                logger.info("Config restored")
+            
+            logger.info("Update completed, restarting...")
+            
+            # Schedule restart
+            asyncio.create_task(self._do_restart())
+            
+            return web.json_response({
+                "success": True,
+                "message": "Cập nhật thành công! App đang restart..."
+            })
+            
+        except Exception as e:
+            logger.error(f"Update failed: {e}")
+            return web.json_response({
+                "success": False,
+                "message": f"Lỗi: {str(e)}"
+            })
     
     async def _do_restart(self):
         """Thực hiện restart."""
