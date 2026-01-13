@@ -78,6 +78,8 @@ class AudioCodec:
         # HDMI Audio output
         self._hdmi_audio = False
         self._hdmi_device_name = None  # e.g., "vc4hdmi0"
+        self._hdmi_aplay_process = None  # Subprocess for HDMI output via aplay
+        self._hdmi_use_aplay = False  # Flag to use aplay instead of sounddevice
         
         # Beamforming processor for dual mic
         self.beamforming = BeamformingProcessor()
@@ -275,6 +277,72 @@ class AudioCodec:
             
         except Exception as e:
             logger.warning(f"Set ALSA HDMI default failed: {e}")
+    
+    def _start_hdmi_aplay(self):
+        """
+        Khởi động aplay subprocess cho HDMI output.
+        aplay nhận raw PCM data từ stdin.
+        """
+        import subprocess
+        
+        try:
+            hdmi_card = self._hdmi_device_name or "vc4hdmi0"
+            
+            # aplay command: read raw PCM from stdin
+            # -D: device, -f: format, -r: sample rate, -c: channels
+            cmd = [
+                "aplay",
+                "-D", f"plughw:CARD={hdmi_card}",
+                "-f", "S16_LE",  # Signed 16-bit Little Endian
+                "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),  # 24000
+                "-c", "1",  # Mono
+                "-q",  # Quiet
+                "-"  # Read from stdin
+            ]
+            
+            self._hdmi_aplay_process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            
+            self._hdmi_use_aplay = True
+            logger.info(f"🔊 HDMI aplay started: {' '.join(cmd)}")
+            
+        except Exception as e:
+            logger.error(f"Failed to start HDMI aplay: {e}")
+            self._hdmi_use_aplay = False
+    
+    def _stop_hdmi_aplay(self):
+        """Dừng aplay subprocess."""
+        if self._hdmi_aplay_process:
+            try:
+                self._hdmi_aplay_process.stdin.close()
+                self._hdmi_aplay_process.terminate()
+                self._hdmi_aplay_process.wait(timeout=2)
+            except:
+                try:
+                    self._hdmi_aplay_process.kill()
+                except:
+                    pass
+            self._hdmi_aplay_process = None
+            logger.info("HDMI aplay stopped")
+    
+    def _write_hdmi_audio(self, audio_data):
+        """
+        Ghi audio data vào HDMI aplay process.
+        audio_data: numpy array int16
+        """
+        if self._hdmi_aplay_process and self._hdmi_aplay_process.stdin:
+            try:
+                self._hdmi_aplay_process.stdin.write(audio_data.tobytes())
+                self._hdmi_aplay_process.stdin.flush()
+            except Exception as e:
+                # Restart aplay nếu bị lỗi
+                logger.warning(f"HDMI aplay write error: {e}, restarting...")
+                self._stop_hdmi_aplay()
+                self._start_hdmi_aplay()
 
     async def initialize(self):
         """
@@ -292,6 +360,9 @@ class AudioCodec:
             # Set ALSA default device cho HDMI nếu enabled
             if self._hdmi_audio and self._hdmi_device_name:
                 self._set_alsa_hdmi_default()
+                # Khởi động aplay subprocess cho HDMI output
+                self._start_hdmi_aplay()
+                logger.info("🔊 HDMI output sẽ dùng aplay thay vì sounddevice")
 
             # Lấy thông tin mặc định đầu vào/đầu ra an toàn (tránh -1)
             try:
@@ -1041,8 +1112,13 @@ class AudioCodec:
                 )
                 return
 
-            # Đưa vào hàng đợi phát
-            self._put_audio_data_safe(self._output_buffer, audio_array)
+            # Nếu HDMI aplay được sử dụng, ghi trực tiếp vào aplay
+            if self._hdmi_use_aplay and self._hdmi_aplay_process:
+                self._write_hdmi_audio(audio_array)
+                self._is_playing = True
+            else:
+                # Đưa vào hàng đợi phát (sounddevice)
+                self._put_audio_data_safe(self._output_buffer, audio_array)
 
         except opuslib.OpusError as e:
             logger.warning(f"Giải mã Opus thất bại, bỏ qua khung này: {e}")
@@ -1184,6 +1260,10 @@ class AudioCodec:
 
         self._is_closing = True
         logger.info("开始关闭音频编解码器...")
+        
+        # Stop HDMI aplay nếu đang chạy
+        if self._hdmi_use_aplay:
+            self._stop_hdmi_aplay()
 
         try:
             # 1. 停止音频流（停止硬件回调，这是最关键的第一步）
