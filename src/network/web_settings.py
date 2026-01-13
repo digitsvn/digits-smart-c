@@ -347,6 +347,32 @@ DASHBOARD_HTML = """
         </div>
         
         <div class="card">
+            <h2>🧪 Test Thiết Bị</h2>
+            <div class="form-group">
+                <label>🎤 Test Microphone:</label>
+                <button class="btn btn-primary" onclick="testMic()" id="testMicBtn" style="margin-bottom: 10px;">🎤 Ghi âm 3s</button>
+                <div id="micStatus"></div>
+            </div>
+            <div class="form-group">
+                <label>🔊 Test Loa:</label>
+                <button class="btn btn-primary" onclick="testSpeaker()" style="margin-bottom: 10px;">🔊 Phát âm thanh</button>
+                <div id="speakerStatus"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>💬 Test Chat AI</h2>
+            <div class="form-group">
+                <input type="text" id="chatInput" placeholder="Nhập tin nhắn test..." style="margin-bottom: 10px;">
+                <button class="btn btn-primary" onclick="testChat()">📤 Gửi</button>
+            </div>
+            <div id="chatResponse" style="padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px; min-height: 80px; margin-top: 10px;">
+                <span style="color: #888;">Nhập tin nhắn và nhấn Gửi để test AI...</span>
+            </div>
+            <div id="chatStatus"></div>
+        </div>
+        
+        <div class="card">
             <h2>⚙️ Điều khiển</h2>
             <button class="btn btn-success" onclick="restartApp()" style="margin-bottom: 10px;">🔄 Restart App</button>
             <button class="btn btn-danger" onclick="rebootPi()">🔌 Reboot Pi</button>
@@ -520,6 +546,86 @@ DASHBOARD_HTML = """
                 alert('Pi đang reboot...');
             } catch (e) {}
         }
+        
+        // ========== TEST FUNCTIONS ==========
+        async function testMic() {
+            const btn = document.getElementById('testMicBtn');
+            btn.disabled = true;
+            btn.textContent = '🔴 Đang ghi âm...';
+            showStatus('micStatus', 'success', '⏳ Đang ghi âm 3 giây...');
+            
+            try {
+                const resp = await fetch('/api/test/mic', {method: 'POST'});
+                const data = await resp.json();
+                showStatus('micStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('micStatus', 'error', 'Lỗi: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🎤 Ghi âm 3s';
+            }
+        }
+        
+        async function testSpeaker() {
+            showStatus('speakerStatus', 'success', '⏳ Đang phát âm thanh...');
+            try {
+                const resp = await fetch('/api/test/speaker', {method: 'POST'});
+                const data = await resp.json();
+                showStatus('speakerStatus', data.success ? 'success' : 'error', data.message);
+            } catch (e) {
+                showStatus('speakerStatus', 'error', 'Lỗi: ' + e.message);
+            }
+        }
+        
+        async function testChat() {
+            const input = document.getElementById('chatInput');
+            const responseDiv = document.getElementById('chatResponse');
+            const message = input.value.trim();
+            
+            if (!message) {
+                showStatus('chatStatus', 'error', 'Vui lòng nhập tin nhắn!');
+                return;
+            }
+            
+            responseDiv.innerHTML = '<span style="color: #888;">⏳ Đang gửi đến AI...</span>';
+            showStatus('chatStatus', '', '');
+            
+            try {
+                const resp = await fetch('/api/test/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message})
+                });
+                const data = await resp.json();
+                
+                if (data.success) {
+                    responseDiv.innerHTML = `
+                        <div style="margin-bottom: 10px; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 10px;">
+                            <strong>🧑 Bạn:</strong> ${message}
+                        </div>
+                        <div style="padding: 10px; background: rgba(255,255,255,0.1); border-radius: 10px;">
+                            <strong>🤖 AI:</strong> ${data.response || 'Không có phản hồi'}
+                        </div>
+                    `;
+                    input.value = '';
+                } else {
+                    responseDiv.innerHTML = '<span style="color: #ff6b6b;">❌ ' + data.message + '</span>';
+                }
+            } catch (e) {
+                responseDiv.innerHTML = '<span style="color: #ff6b6b;">❌ Lỗi kết nối: ' + e.message + '</span>';
+            }
+        }
+        
+        // Enter key to send chat
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput) {
+                chatInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') testChat();
+                });
+            }
+        });
+        
         
         async function saveAudio() {
             const micDevice = document.getElementById('micDevice').value;
@@ -779,6 +885,10 @@ class WebSettingsServer:
         # Control
         self.app.router.add_post('/api/restart', self._handle_restart)
         self.app.router.add_post('/api/reboot', self._handle_reboot)
+        # Test
+        self.app.router.add_post('/api/test/mic', self._handle_test_mic)
+        self.app.router.add_post('/api/test/speaker', self._handle_test_speaker)
+        self.app.router.add_post('/api/test/chat', self._handle_test_chat)
     
     async def _handle_index(self, request):
         """Trang chính."""
@@ -1297,6 +1407,123 @@ class WebSettingsServer:
             return ip
         except Exception:
             return "Unknown"
+    
+    # ========== TEST HANDLERS ==========
+    async def _handle_test_mic(self, request):
+        """Test microphone - ghi âm và phát lại."""
+        try:
+            import sounddevice as sd
+            import numpy as np
+            
+            logger.info("Test MIC: Recording 3 seconds...")
+            
+            # Ghi âm 3 giây
+            sample_rate = 16000
+            duration = 3
+            recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='int16')
+            sd.wait()
+            
+            # Kiểm tra có âm thanh không
+            max_amplitude = np.max(np.abs(recording))
+            avg_amplitude = np.mean(np.abs(recording))
+            
+            logger.info(f"Test MIC: Max amplitude: {max_amplitude}, Avg: {avg_amplitude}")
+            
+            # Phát lại
+            logger.info("Test MIC: Playing back...")
+            sd.play(recording, sample_rate)
+            sd.wait()
+            
+            if max_amplitude < 100:
+                return web.json_response({
+                    "success": False, 
+                    "message": f"⚠️ Microphone quá yếu hoặc không hoạt động (max: {max_amplitude})"
+                })
+            
+            return web.json_response({
+                "success": True, 
+                "message": f"✅ MIC OK! Đã ghi và phát lại. Max: {max_amplitude}, Avg: {int(avg_amplitude)}"
+            })
+            
+        except Exception as e:
+            logger.error(f"Test MIC error: {e}")
+            return web.json_response({"success": False, "message": f"❌ Lỗi: {str(e)}"})
+    
+    async def _handle_test_speaker(self, request):
+        """Test speaker - phát âm thanh beep."""
+        try:
+            import sounddevice as sd
+            import numpy as np
+            
+            logger.info("Test Speaker: Playing beep...")
+            
+            # Tạo beep tone
+            sample_rate = 44100
+            duration = 0.5
+            frequency = 440  # A4 note
+            
+            t = np.linspace(0, duration, int(sample_rate * duration), False)
+            # Sine wave with fade in/out
+            beep = np.sin(2 * np.pi * frequency * t) * 0.5
+            fade_samples = int(sample_rate * 0.05)
+            beep[:fade_samples] *= np.linspace(0, 1, fade_samples)
+            beep[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+            
+            # Phát 3 beep
+            for i in range(3):
+                sd.play(beep.astype(np.float32), sample_rate)
+                sd.wait()
+                if i < 2:
+                    import time
+                    time.sleep(0.2)
+            
+            return web.json_response({
+                "success": True, 
+                "message": "✅ Đã phát 3 tiếng beep! Bạn có nghe thấy không?"
+            })
+            
+        except Exception as e:
+            logger.error(f"Test Speaker error: {e}")
+            return web.json_response({"success": False, "message": f"❌ Lỗi: {str(e)}"})
+    
+    async def _handle_test_chat(self, request):
+        """Test chat với AI qua WebSocket API."""
+        try:
+            data = await request.json()
+            message = data.get("message", "").strip()
+            
+            if not message:
+                return web.json_response({"success": False, "message": "Thiếu tin nhắn"})
+            
+            logger.info(f"Test Chat: Sending '{message}' to AI...")
+            
+            # Thử gửi qua Application nếu có
+            try:
+                from src.application import Application
+                app = Application._instance
+                
+                if app and hasattr(app, 'protocol') and app.protocol:
+                    # Gửi tin nhắn qua protocol
+                    await app.protocol.send_text(message)
+                    return web.json_response({
+                        "success": True,
+                        "response": "📤 Đã gửi tin nhắn đến AI! Xem phản hồi trên màn hình chính."
+                    })
+                else:
+                    return web.json_response({
+                        "success": False,
+                        "message": "⚠️ Chưa kết nối với AI Server. Vui lòng khởi động lại app."
+                    })
+            except Exception as e:
+                logger.error(f"Test Chat send error: {e}")
+                return web.json_response({
+                    "success": False,
+                    "message": f"❌ Lỗi gửi tin nhắn: {str(e)}"
+                })
+            
+        except Exception as e:
+            logger.error(f"Test Chat error: {e}")
+            return web.json_response({"success": False, "message": f"❌ Lỗi: {str(e)}"})
 
 
 # Singleton instance
