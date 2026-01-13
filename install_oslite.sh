@@ -744,6 +744,7 @@ main() {
     configure_desktop_autologin
     configure_autostart
     configure_audio
+    configure_i2s_mic      # Cấu hình I2S cho INMP441
     configure_network
     configure_logrotate
     
