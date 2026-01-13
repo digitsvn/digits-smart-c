@@ -310,53 +310,66 @@ class AudioCodec:
         """
         Khởi động aplay subprocess cho HDMI output.
         aplay nhận raw PCM data từ stdin.
+        Retry nếu device busy (video đang load).
         """
-
-        try:
-            hdmi_card = self._hdmi_device_name or "vc4hdmi0"
-            
-            # aplay command: read raw PCM from stdin
-            cmd = [
-                "aplay",
-                "-D", f"plughw:CARD={hdmi_card}",
-                "-f", "S16_LE",  # Signed 16-bit Little Endian
-                "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
-                "-c", "1",  # Mono
-                "-q",  # Quiet
-                "-"  # Read from stdin
-            ]
-            
-            self._hdmi_aplay_process = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE  # Capture stderr để debug
-            )
-            
-            # Đợi ngắn để xem aplay có lỗi ngay không
-            time.sleep(0.1)
-            if self._hdmi_aplay_process.poll() is not None:
-                # aplay đã chết - đọc lỗi
-                stderr_output = self._hdmi_aplay_process.stderr.read().decode('utf-8', errors='ignore')
-                logger.error(f"aplay failed immediately: {stderr_output}")
-                self._hdmi_use_aplay = False
-                return
-            
-            # Gửi silence ngắn để "warm up" pipeline
-            # Điều này giúp HDMI output sẵn sàng ngay khi có audio thật
+        
+        hdmi_card = self._hdmi_device_name or "vc4hdmi0"
+        
+        # aplay command: read raw PCM from stdin
+        cmd = [
+            "aplay",
+            "-D", f"plughw:CARD={hdmi_card}",
+            "-f", "S16_LE",  # Signed 16-bit Little Endian
+            "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
+            "-c", "1",  # Mono
+            "-q",  # Quiet
+            "-"  # Read from stdin
+        ]
+        
+        # Retry loop - đợi video release device
+        max_retries = 5
+        for attempt in range(max_retries):
             try:
-                silence = b'\x00' * 4800  # ~50ms of silence at 16kHz mono
-                self._hdmi_aplay_process.stdin.write(silence)
-                self._hdmi_aplay_process.stdin.flush()
+                self._hdmi_aplay_process = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE  # Capture stderr để debug
+                )
+                
+                # Đợi ngắn để xem aplay có lỗi ngay không
+                time.sleep(0.2)
+                if self._hdmi_aplay_process.poll() is not None:
+                    # aplay đã chết - đọc lỗi
+                    stderr_output = self._hdmi_aplay_process.stderr.read().decode('utf-8', errors='ignore')
+                    if "busy" in stderr_output.lower():
+                        logger.warning(f"HDMI device busy (attempt {attempt+1}/{max_retries}), retrying...")
+                        time.sleep(1)  # Đợi 1 giây rồi thử lại
+                        continue
+                    else:
+                        logger.error(f"aplay failed: {stderr_output}")
+                        self._hdmi_use_aplay = False
+                        return
+                
+                # Gửi silence ngắn để "warm up" pipeline
+                try:
+                    silence = b'\x00' * 4800  # ~50ms of silence at 16kHz mono
+                    self._hdmi_aplay_process.stdin.write(silence)
+                    self._hdmi_aplay_process.stdin.flush()
+                except Exception as e:
+                    logger.warning(f"aplay warmup failed: {e}")
+                
+                self._hdmi_use_aplay = True
+                logger.info(f"🔊 HDMI aplay started: {' '.join(cmd)}")
+                return
+                
             except Exception as e:
-                logger.warning(f"aplay warmup failed: {e}")
-            
-            self._hdmi_use_aplay = True
-            logger.info(f"🔊 HDMI aplay started: {' '.join(cmd)}")
-            
-        except Exception as e:
-            logger.error(f"Failed to start HDMI aplay: {e}")
-            self._hdmi_use_aplay = False
+                logger.warning(f"aplay attempt {attempt+1} failed: {e}")
+                time.sleep(1)
+        
+        # Hết retry
+        logger.error(f"Failed to start HDMI aplay after {max_retries} attempts")
+        self._hdmi_use_aplay = False
     
     def _stop_hdmi_aplay(self):
         """Dừng aplay subprocess."""

@@ -353,11 +353,6 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         Cấu hình môi trường.
         """
         os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.fonts.debug=false")
-        
-        # Video background không cần audio - dùng null sink để không chiếm HDMI
-        # Điều này cho phép AI audio có thể dùng HDMI
-        os.environ.setdefault("GST_AUDIO_SINK", "fakesink")
-        os.environ.setdefault("PULSE_SINK", "null")
 
         self.app = QApplication.instance()
         if self.app is None:
