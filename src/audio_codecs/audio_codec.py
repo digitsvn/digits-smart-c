@@ -232,19 +232,48 @@ class AudioCodec:
     def _extract_alsa_card_name(self, device_name: str) -> str:
         """
         Extract ALSA card name từ sounddevice device name.
-        Ví dụ: "vc4hdmi0: vc4-hdmi-0, bcm2835 HDMI 1" -> "vc4hdmi0"
+        Ví dụ: "vc4-hdmi-0: MAI PCM i2s-hifi-0 (hw:1,0)" -> "vc4hdmi0"
         """
-        # Thử tìm trong các HDMI card names phổ biến trên Pi
-        hdmi_cards = ["vc4hdmi0", "vc4hdmi1", "vc4hdmi", "hdmi"]
+        import subprocess
+        
+        # Thử lấy từ aplay -l để có card name chính xác
+        try:
+            result = subprocess.run(
+                ["aplay", "-l"],
+                capture_output=True, text=True, timeout=5
+            )
+            
+            # Tìm HDMI card trong output
+            # Format: "card 1: vc4hdmi0 [vc4-hdmi-0], device 0:..."
+            for line in result.stdout.split('\n'):
+                if 'hdmi' in line.lower() and 'card' in line.lower():
+                    # Extract card name từ format "card X: NAME [...
+                    parts = line.split(':')
+                    if len(parts) >= 2:
+                        card_part = parts[1].strip()
+                        # Card name là phần đầu trước space hoặc [
+                        card_name = card_part.split()[0].split('[')[0].strip()
+                        if card_name:
+                            logger.info(f"Detected ALSA HDMI card: {card_name}")
+                            return card_name
+                            
+        except Exception as e:
+            logger.warning(f"aplay -l failed: {e}")
+        
+        # Fallback: thử các card name phổ biến
+        hdmi_cards = ["vc4hdmi0", "vc4hdmi1", "vc4hdmi"]
         name_lower = device_name.lower()
         
         for card in hdmi_cards:
             if card in name_lower:
                 return card
         
-        # Fallback: lấy phần đầu trước dấu :
+        # Fallback cuối: lấy phần đầu trước dấu :
         if ":" in device_name:
-            return device_name.split(":")[0].strip()
+            first_part = device_name.split(":")[0].strip()
+            # Loại bỏ ký tự không hợp lệ
+            card_name = first_part.replace("-", "").replace(" ", "")
+            return card_name if card_name else "vc4hdmi0"
         
         return "vc4hdmi0"  # Default
     
