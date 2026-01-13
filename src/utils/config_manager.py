@@ -77,6 +77,21 @@ class ConfigManager:
             "output_device_name": None,
             "input_sample_rate": None,
             "output_sample_rate": None,
+            # I2S INMP441 Microphone settings
+            "i2s_enabled": False,
+            "i2s_stereo": False,
+            # Beamforming settings
+            "beamforming_enabled": False,
+            "mic_distance": 8.0,    # Khoảng cách giữa 2 mic (cm)
+            "speaker_angle": 180.0  # Góc của loa (180 = phía sau)
+        },
+        # Video Background settings
+        "VIDEO_BACKGROUND": {
+            "ENABLED": False,
+            "SOURCE_TYPE": "file",  # file | youtube
+            "VIDEO_FILE_PATH": "",
+            "YOUTUBE_URL": "",
+            "VIDEO_LOOP": True
         },
     }
 
