@@ -276,8 +276,11 @@ DASHBOARD_HTML = """
                                 style="width: 70px; padding: 5px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff;">
                         </div>
                     </div>
-                    <div style="font-size: 12px; color: #94a3b8; margin-top: 10px; margin-left: 30px;">
-                        📌 Kết nối: VDD→3.3V, GND→GND, SD→GPIO20, WS→GPIO19, SCK→GPIO18
+                    <div style="font-size: 11px; color: #94a3b8; margin-top: 10px; margin-left: 30px; font-family: monospace; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px;">
+                        📌 <b>INMP441 → Raspberry Pi:</b><br>
+                        VDD → 3.3V (Pin 1) | GND → GND (Pin 6)<br>
+                        SD → GPIO20 (Pin 38) | WS → GPIO19 (Pin 35) | SCK → GPIO18 (Pin 12)<br>
+                        L/R → GND (Left) hoặc 3.3V (Right cho mic 2)
                     </div>
                 </div>
             </div>
