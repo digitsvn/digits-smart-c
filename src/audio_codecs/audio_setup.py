@@ -179,7 +179,7 @@ def setup_audio_environment():
     Main setup function - gọi khi app khởi động.
     
     Flow:
-    1. Kiểm tra có phải Raspberry Pi không
+    1. Kiểm tra dependencies (cài nếu thiếu)
     2. Kill tất cả audio processes
     3. Restart PulseAudio
     4. Set HDMI làm default sink
@@ -190,6 +190,13 @@ def setup_audio_environment():
         return False
     
     logger.info("=== Audio Setup: Starting ===")
+    
+    # Step 0: Check and install dependencies
+    try:
+        from src.utils.dependency_checker import check_all_dependencies
+        check_all_dependencies()
+    except Exception as e:
+        logger.warning(f"Dependency check failed: {e}")
     
     # Step 1: Kill stale processes
     kill_audio_processes()
