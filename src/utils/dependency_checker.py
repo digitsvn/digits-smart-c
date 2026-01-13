@@ -20,39 +20,66 @@ logger = get_logger(__name__)
 
 # APT packages cần thiết cho Raspberry Pi
 APT_PACKAGES = [
-    # Audio
+    # === AUDIO OUTPUT ===
     ("pulseaudio", "pulseaudio"),
     ("pactl", "pulseaudio-utils"),
     ("aplay", "alsa-utils"),
     
-    # Media
-    ("ffmpeg", "ffmpeg"),
-    
-    # Python build dependencies
-    ("python3-pip", "python3-pip"),
-    ("python3-dev", "python3-dev"),
-    
-    # PyQt5 dependencies (GUI)
-    ("", "python3-pyqt5"),
-    ("", "python3-pyqt5.qtmultimedia"),
-    ("", "libqt5multimedia5-plugins"),
-    ("", "gstreamer1.0-plugins-good"),
-    ("", "gstreamer1.0-plugins-bad"),
-    ("", "gstreamer1.0-plugins-ugly"),
-    
-    # OpenCV dependencies
-    ("", "libatlas-base-dev"),
-    ("", "libjasper-dev"),
-    ("", "libhdf5-dev"),
-    
-    # Audio libs
+    # === MIC / AUDIO INPUT ===
+    # PortAudio - cho sounddevice
     ("", "libportaudio2"),
+    ("", "portaudio19-dev"),
+    # ALSA development
+    ("", "libasound2-dev"),
+    # I2S MIC support
+    ("", "i2c-tools"),
+    # Jack audio (optional)
+    ("", "libjack-dev"),
+    
+    # === OPUS CODEC ===
     ("", "libopus0"),
     ("", "libopus-dev"),
     
-    # Network
+    # === VIDEO / MEDIA ===
+    ("ffmpeg", "ffmpeg"),
+    # GStreamer cho Qt Multimedia
+    ("", "gstreamer1.0-tools"),
+    ("", "gstreamer1.0-plugins-base"),
+    ("", "gstreamer1.0-plugins-good"),
+    ("", "gstreamer1.0-plugins-bad"),
+    ("", "gstreamer1.0-plugins-ugly"),
+    ("", "gstreamer1.0-libav"),
+    ("", "gstreamer1.0-alsa"),
+    ("", "gstreamer1.0-pulseaudio"),
+    # Qt Multimedia for video
+    ("", "libqt5multimedia5"),
+    ("", "libqt5multimedia5-plugins"),
+    ("", "qml-module-qtmultimedia"),
+    
+    # === PyQt5 / GUI ===
+    ("", "python3-pyqt5"),
+    ("", "python3-pyqt5.qtmultimedia"),
+    ("", "python3-pyqt5.qtquick"),
+    ("", "qml-module-qtquick2"),
+    ("", "qml-module-qtquick-controls"),
+    ("", "qml-module-qtquick-controls2"),
+    ("", "qml-module-qtquick-layouts"),
+    ("", "qml-module-qtquick-window2"),
+    
+    # === Python build dependencies ===
+    ("", "python3-pip"),
+    ("", "python3-dev"),
+    ("", "python3-numpy"),
+    ("", "python3-pil"),
+    
+    # === OpenCV dependencies ===
+    ("", "libatlas-base-dev"),
+    ("", "libhdf5-dev"),
+    
+    # === Network ===
     ("curl", "curl"),
     ("wget", "wget"),
+    ("git", "git"),
 ]
 
 # Python packages từ requirements-pi.txt
