@@ -1298,14 +1298,19 @@ class WebSettingsServer:
             
             # Lấy audio plugin
             audio_plugin = app.plugins.get_plugin("audio")
-            if not audio_plugin or not hasattr(audio_plugin, "codec"):
+            if not audio_plugin:
                 return web.json_response({"success": False, "message": "Audio plugin không tìm thấy"})
             
-            codec = audio_plugin.codec
+            codec = getattr(audio_plugin, "codec", None)
+            if not codec:
+                return web.json_response({"success": False, "message": "Audio codec chưa khởi tạo"})
             
-            # Stop current streams
+            # Stop current streams (nếu có method)
             logger.info("Stopping audio streams for restart...")
-            await codec.stop_streams()
+            if hasattr(codec, "stop_streams"):
+                await codec.stop_streams()
+            elif hasattr(codec, "close"):
+                await codec.close()
             
             # Reload config
             self.config.reload_config()
