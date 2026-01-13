@@ -80,8 +80,9 @@ class WakeWordPlugin(Plugin):
                     await self.app.abort_speaking(AbortReason.WAKE_WORD_DETECTED)
                     if audio_plugin and hasattr(audio_plugin, "codec"):
                         await audio_plugin.codec.clear_audio_queue()
-                        # Reset playing flag
-                        audio_plugin.codec._is_playing = False
+                        # Reset playing state via method (không access private attr trực tiếp)
+                        if hasattr(audio_plugin.codec, "reset_playing_state"):
+                            audio_plugin.codec.reset_playing_state()
                     # Sau khi interrupt, bắt đầu nghe lại
                     logger.info("Starting auto conversation after interrupt...")
                     await self.app.start_auto_conversation()

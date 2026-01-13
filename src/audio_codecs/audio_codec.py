@@ -979,6 +979,15 @@ class AudioCodec:
             gc.collect()
             logger.debug("Thực hiện thu gom rác để giải phóng bộ nhớ")
 
+    def reset_playing_state(self):
+        """
+        Reset trạng thái playback.
+        Dùng khi cần interrupt audio đang phát (e.g., wake word detected).
+        """
+        self._is_playing = False
+        self._playback_end_time = 0
+        logger.info("Playing state reset")
+
     async def start_streams(self):
         """
         Bắt đầu luồng âm thanh.

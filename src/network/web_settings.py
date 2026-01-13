@@ -1757,6 +1757,54 @@ class WebSettingsServer:
         except Exception as e:
             health["checks"]["config"] = {"status": "error", "message": str(e)}
         
+        # Check 5: Beamforming status
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app and hasattr(app, 'plugins'):
+                audio_plugin = app.plugins.get_plugin("audio")
+                if audio_plugin and hasattr(audio_plugin, "codec"):
+                    codec = audio_plugin.codec
+                    beamforming = getattr(codec, "beamforming", None)
+                    if beamforming:
+                        bf_status = beamforming.get_status()
+                        health["checks"]["beamforming"] = {
+                            "status": "ok",
+                            "enabled": bf_status.get("enabled", False),
+                            "mic_distance_cm": bf_status.get("mic_distance_cm", 0),
+                            "voice_active": bf_status.get("is_voice_active", False)
+                        }
+                    else:
+                        health["checks"]["beamforming"] = {"status": "disabled"}
+        except Exception as e:
+            health["checks"]["beamforming"] = {"status": "error", "message": str(e)}
+        
+        # Check 6: CPU Temperature (Raspberry Pi)
+        try:
+            cpu_temp = None
+            temp_file = "/sys/class/thermal/thermal_zone0/temp"
+            if os.path.exists(temp_file):
+                with open(temp_file) as f:
+                    cpu_temp = int(f.read().strip()) / 1000.0
+            
+            if cpu_temp is not None:
+                temp_status = "ok" if cpu_temp < 70 else ("warning" if cpu_temp < 80 else "error")
+                health["checks"]["temperature"] = {
+                    "status": temp_status,
+                    "cpu_temp_c": round(cpu_temp, 1),
+                    "throttled": cpu_temp >= 80
+                }
+        except Exception:
+            pass  # Not on Raspberry Pi
+        
+        # Check 7: CPU per core (for beamforming impact monitoring)
+        try:
+            cpu_per_core = psutil.cpu_percent(percpu=True)
+            health["checks"]["system"]["cpu_per_core"] = cpu_per_core
+            health["checks"]["system"]["cpu_count"] = len(cpu_per_core)
+        except Exception:
+            pass
+        
         # Overall status
         statuses = [c.get("status", "ok") for c in health["checks"].values()]
         if "error" in statuses:
