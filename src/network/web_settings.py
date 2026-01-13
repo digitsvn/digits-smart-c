@@ -250,6 +250,21 @@ DASHBOARD_HTML = """
                     oninput="document.getElementById('micVolumeValue').textContent=this.value"
                     style="width:100%; accent-color:#667eea;">
             </div>
+            <div class="form-group" style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 10px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="i2sEnabled" onchange="toggleI2S()" style="width: 20px; height: 20px;">
+                    <span>🎙️ Sử dụng I2S Microphone (INMP441)</span>
+                </label>
+                <div id="i2sOptions" style="margin-top: 10px; display: none;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-left: 30px;">
+                        <input type="checkbox" id="i2sStereo" style="width: 18px; height: 18px;">
+                        <span>Stereo (2 mic L+R cho beamforming)</span>
+                    </label>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 10px; margin-left: 30px;">
+                        📌 Kết nối: VDD→3.3V, GND→GND, SD→GPIO20, WS→GPIO19, SCK→GPIO18
+                    </div>
+                </div>
+            </div>
             <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Mic</button>
             <div id="micStatus"></div>
         </div>
@@ -627,18 +642,25 @@ DASHBOARD_HTML = """
             }
         });
         
+        // I2S Toggle
+        function toggleI2S() {
+            const enabled = document.getElementById('i2sEnabled').checked;
+            document.getElementById('i2sOptions').style.display = enabled ? 'block' : 'none';
+        }
         
         async function saveAudio() {
             const micDevice = document.getElementById('micDevice').value;
             const speakerDevice = document.getElementById('speakerDevice').value;
             const micVolume = document.getElementById('micVolume').value;
             const speakerVolume = document.getElementById('speakerVolume').value;
+            const i2sEnabled = document.getElementById('i2sEnabled').checked;
+            const i2sStereo = document.getElementById('i2sStereo').checked;
             
             try {
                 const resp = await fetch('/api/audio', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({micDevice, speakerDevice, micVolume, speakerVolume})
+                    body: JSON.stringify({micDevice, speakerDevice, micVolume, speakerVolume, i2sEnabled, i2sStereo})
                 });
                 const data = await resp.json();
                 showStatus('micStatus', data.success ? 'success' : 'error', data.message);
@@ -688,6 +710,11 @@ DASHBOARD_HTML = """
                 document.getElementById('micVolumeValue').textContent = data.mic_volume || 100;
                 document.getElementById('speakerVolume').value = data.speaker_volume || 80;
                 document.getElementById('speakerVolumeValue').textContent = data.speaker_volume || 80;
+                
+                // I2S settings
+                document.getElementById('i2sEnabled').checked = data.i2s_enabled || false;
+                document.getElementById('i2sStereo').checked = data.i2s_stereo || false;
+                toggleI2S();
             } catch (e) {
                 console.error('Load audio devices failed:', e);
             }
@@ -1080,6 +1107,11 @@ class WebSettingsServer:
             mic_volume = self.config.get_config("AUDIO.MIC_VOLUME", 100)
             speaker_volume = self.config.get_config("AUDIO.SPEAKER_VOLUME", 80)
             
+            # I2S settings
+            audio_devices_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
+            i2s_enabled = audio_devices_config.get("i2s_enabled", False)
+            i2s_stereo = audio_devices_config.get("i2s_stereo", False)
+            
             return web.json_response({
                 "input_devices": input_devices,
                 "output_devices": output_devices,
@@ -1087,6 +1119,8 @@ class WebSettingsServer:
                 "current_speaker": current_speaker,
                 "mic_volume": mic_volume,
                 "speaker_volume": speaker_volume,
+                "i2s_enabled": i2s_enabled,
+                "i2s_stereo": i2s_stereo,
             })
         except Exception as e:
             return web.json_response({"input_devices": [], "output_devices": [], "error": str(e)})
@@ -1100,11 +1134,19 @@ class WebSettingsServer:
             speaker_device = int(data.get("speakerDevice", 0))
             mic_volume = int(data.get("micVolume", 100))
             speaker_volume = int(data.get("speakerVolume", 80))
+            i2s_enabled = data.get("i2sEnabled", False)
+            i2s_stereo = data.get("i2sStereo", False)
             
             self.config.update_config("AUDIO.INPUT_DEVICE_INDEX", mic_device)
             self.config.update_config("AUDIO.OUTPUT_DEVICE_INDEX", speaker_device)
             self.config.update_config("AUDIO.MIC_VOLUME", mic_volume)
             self.config.update_config("AUDIO.SPEAKER_VOLUME", speaker_volume)
+            
+            # I2S settings trong AUDIO_DEVICES
+            audio_devices = self.config.get_config("AUDIO_DEVICES", {}) or {}
+            audio_devices["i2s_enabled"] = i2s_enabled
+            audio_devices["i2s_stereo"] = i2s_stereo
+            self.config.update_config("AUDIO_DEVICES", audio_devices)
             
             # Áp dụng volume ngay bằng amixer
             try:
@@ -1113,7 +1155,11 @@ class WebSettingsServer:
             except Exception:
                 pass
             
-            return web.json_response({"success": True, "message": "Đã lưu cài đặt âm thanh!"})
+            msg = "Đã lưu cài đặt âm thanh!"
+            if i2s_enabled:
+                msg += " (I2S: " + ("Stereo" if i2s_stereo else "Mono") + ")"
+            
+            return web.json_response({"success": True, "message": msg})
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
     

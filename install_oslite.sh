@@ -126,6 +126,53 @@ HDMI_CONFIG
 }
 
 # =============================================================================
+# CẤU HÌNH I2S MICROPHONE (INMP441)
+# =============================================================================
+configure_i2s_mic() {
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "Cấu hình I2S Microphone (INMP441)"
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Tìm config file
+    CONFIG_FILE="/boot/firmware/config.txt"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        CONFIG_FILE="/boot/config.txt"
+    fi
+    
+    # Kiểm tra xem đã có overlay chưa
+    if grep -q "dtoverlay=i2s-mmap" "$CONFIG_FILE" 2>/dev/null; then
+        log "✓ I2S overlay đã được cấu hình"
+        return
+    fi
+    
+    # Thêm I2S overlay
+    log "Thêm I2S overlay cho INMP441..."
+    cat << 'I2S_CONFIG' | sudo tee -a "$CONFIG_FILE" > /dev/null
+
+# ============================================
+# I2S Microphone (INMP441) Configuration
+# ============================================
+# Enable I2S interface
+dtparam=i2s=on
+
+# I2S memory mapping for better performance
+dtoverlay=i2s-mmap
+
+# For stereo INMP441 (2 mics L+R)
+# dtoverlay=googlevoicehat-soundcard
+I2S_CONFIG
+    
+    log "✓ I2S overlay đã cấu hình"
+    log "📌 Kết nối INMP441:"
+    log "   - VDD  → 3.3V (pin 1)"
+    log "   - GND  → GND (pin 6)"
+    log "   - SD   → GPIO 20 (BCK)"
+    log "   - WS   → GPIO 19 (LRCK)"
+    log "   - SCK  → GPIO 18 (CLK)"
+    log "   - L/R  → GND (Left) hoặc 3.3V (Right)"
+}
+
+# =============================================================================
 # BƯỚC 1: Cài đặt Desktop Environment (labwc/Wayland)
 # =============================================================================
 install_desktop() {

@@ -70,6 +70,10 @@ class AudioCodec:
         self._playback_end_time = 0
         self._echo_guard_duration = 0.5  # 500ms guard time sau khi ngừng phát
         
+        # I2S INMP441 Microphone support
+        self._i2s_enabled = False
+        self._i2s_stereo = False  # True nếu có 2 mic (stereo beamforming)
+        
         # Debug logging
         self._last_log_time = 0
 
@@ -158,6 +162,35 @@ class AudioCodec:
                 kind == "output" and d["max_output_channels"] > 0
             ):
                 return i
+        return None
+    
+    def _find_i2s_device(self, devices) -> Optional[int]:
+        """
+        Tìm thiết bị I2S microphone (INMP441).
+        Ưu tiên các tên chứa 'i2s', 'snd_rpi', 'googlevoicehat', 'seeed'.
+        """
+        i2s_keywords = [
+            "i2s", "i2smic", "snd_rpi", "googlevoicehat", 
+            "seeed", "respeaker", "inmp441", "mems"
+        ]
+        
+        for i, d in enumerate(devices):
+            device_name = d["name"].lower()
+            if d["max_input_channels"] > 0:
+                for keyword in i2s_keywords:
+                    if keyword in device_name:
+                        logger.info(f"Tìm thấy I2S device: [{i}] {d['name']}")
+                        return i
+        
+        # Fallback: tìm thiết bị có tên "hw:..." (thường là I2S)
+        for i, d in enumerate(devices):
+            device_name = d["name"].lower()
+            if d["max_input_channels"] > 0 and "hw:" in device_name:
+                # Loại trừ USB và Headphones
+                if "usb" not in device_name and "headphone" not in device_name:
+                    logger.info(f"Fallback I2S device: [{i}] {d['name']}")
+                    return i
+        
         return None
 
     async def initialize(self):
@@ -262,6 +295,13 @@ class AudioCodec:
         """
         try:
             audio_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
+            
+            # Load I2S configuration
+            self._i2s_enabled = audio_config.get("i2s_enabled", False)
+            self._i2s_stereo = audio_config.get("i2s_stereo", False)
+            
+            if self._i2s_enabled:
+                logger.info(f"I2S Mode: {'Stereo (2 INMP441)' if self._i2s_stereo else 'Mono (1 INMP441)'}")
 
             # Có cấu hình rõ ràng chưa (quyết định có ghi lại hay không)
             had_cfg_input = "input_device_id" in audio_config
@@ -271,6 +311,13 @@ class AudioCodec:
             output_device_id = audio_config.get("output_device_id")
 
             devices = sd.query_devices()
+            
+            # Auto-detect I2S microphone nếu enabled
+            if self._i2s_enabled and input_device_id is None:
+                i2s_device = self._find_i2s_device(devices)
+                if i2s_device is not None:
+                    input_device_id = i2s_device
+                    logger.info(f"Auto-detected I2S microphone: [{i2s_device}] {devices[i2s_device]['name']}")
 
             # --- Xác thực thiết bị đầu vào trong cấu hình ---
             if input_device_id is not None:
@@ -488,7 +535,15 @@ class AudioCodec:
                 # Trả về silence thay vì thu âm thực
                 return
             
-            audio_data = indata.copy().flatten()
+            audio_data = indata.copy()
+            
+            # I2S Stereo Processing: Mix 2 channels thành 1 (beamforming đơn giản)
+            if self._i2s_enabled and self._i2s_stereo and len(audio_data.shape) > 1 and audio_data.shape[1] == 2:
+                # Average của 2 channels (simple beamforming)
+                # Có thể cải tiến thành delay-and-sum beamforming sau
+                audio_data = np.mean(audio_data, axis=1).astype(np.int16)
+            else:
+                audio_data = audio_data.flatten()
 
             # Lấy mẫu lại về 16kHz (nếu thiết bị không phải 16kHz)
             if self.input_resampler is not None:
