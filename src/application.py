@@ -367,8 +367,9 @@ class Application:
                         # Tiếp tục đối thoại: khởi động lại nghe dựa trên chế độ hiện tại
                         async def _restart_listening():
                             try:
-                                # Delay để tránh thu lại echo từ loa (1.5s cho Pi speaker)
-                                await asyncio.sleep(1.5)
+                                # Delay ngắn để tránh thu lại echo
+                                await asyncio.sleep(0.5)
+                                logger.info("🎤 Restart listening sau TTS stop")
                                 
                                 # REALTIME và đã ở LISTENING thì không cần gửi lại
                                 if not (
@@ -378,8 +379,8 @@ class Application:
                                     await self.protocol.send_start_listening(
                                         self.listening_mode
                                     )
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.error(f"Restart listening failed: {e}")
                             self.keep_listening and await self.set_device_state(
                                 DeviceState.LISTENING
                             )
