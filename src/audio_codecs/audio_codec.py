@@ -72,6 +72,8 @@ class AudioCodec:
         self._is_playing = False
         self._playback_end_time = 0
         self._echo_guard_duration = 0.5  # 500ms guard time sau khi ngừng phát
+        self._last_audio_write_time = 0  # Track khi nào lần cuối write audio
+        self._echo_timeout = 10.0  # Tự động reset echo period sau 10s nếu stuck
         
         # I2S INMP441 Microphone support
         self._i2s_enabled = False
@@ -838,6 +840,16 @@ class AudioCodec:
         try:
             # Echo Suppression: Kiểm tra xem có đang phát hay không
             current_time = time.time()
+            
+            # Safety timeout: Nếu đang playing quá lâu (>10s), tự động reset
+            # Tránh trường hợp TTS stop message bị miss
+            if self._is_playing and self._last_audio_write_time > 0:
+                time_since_last_write = current_time - self._last_audio_write_time
+                if time_since_last_write > self._echo_timeout:
+                    logger.info(f"⚠️ Echo period timeout ({time_since_last_write:.1f}s > {self._echo_timeout}s), auto-reset")
+                    self._is_playing = False
+                    self._playback_end_time = current_time
+            
             is_echo_period = self._is_playing or (current_time - self._playback_end_time) < self._echo_guard_duration
             
             audio_data = indata.copy()
@@ -1228,6 +1240,7 @@ class AudioCodec:
                 if self._hdmi_aplay_process:
                     self._write_hdmi_audio(audio_array)
                     self._is_playing = True
+                    self._last_audio_write_time = time.time()  # Track để timeout
                 else:
                     logger.warning("⚠️ Cannot write audio: aplay not available")
             elif self._hdmi_audio:
@@ -1237,6 +1250,7 @@ class AudioCodec:
                 if self._hdmi_use_aplay and self._hdmi_aplay_process:
                     self._write_hdmi_audio(audio_array)
                     self._is_playing = True
+                    self._last_audio_write_time = time.time()  # Track để timeout
             else:
                 # Đưa vào hàng đợi phát (sounddevice)
                 self._put_audio_data_safe(self._output_buffer, audio_array)
