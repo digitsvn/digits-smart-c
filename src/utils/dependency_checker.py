@@ -271,6 +271,9 @@ def check_and_install_pip_dependencies() -> Tuple[int, int]:
         return (0, len(missing_packages))
 
 
+DEPS_OK_FLAG = "/tmp/.smart_c_deps_ok"
+
+
 def check_all_dependencies(force_install: bool = False) -> dict:
     """
     Main function - kiểm tra và cài đặt TẤT CẢ dependencies.
@@ -284,6 +287,12 @@ def check_all_dependencies(force_install: bool = False) -> dict:
     if not is_raspberry_pi():
         logger.info("Not on Raspberry Pi, skip dependency check")
         return {"skipped": True, "reason": "not_raspberry_pi"}
+    
+    # Skip nếu đã check trước đó (trong session này)
+    import os
+    if not force_install and os.path.exists(DEPS_OK_FLAG):
+        logger.info("✅ Dependencies already checked, skipping")
+        return {"skipped": True, "reason": "already_checked"}
     
     logger.info("=== Dependency Check: Starting ===")
     
@@ -311,6 +320,16 @@ def check_all_dependencies(force_install: bool = False) -> dict:
         logger.info(f"✅ Installed {total_installed} packages")
     if total_failed > 0:
         logger.warning(f"⚠️ Failed to install {total_failed} packages")
+    
+    # Tạo flag file để skip check lần sau (trong session/boot này)
+    if total_failed == 0:
+        try:
+            with open(DEPS_OK_FLAG, 'w') as f:
+                import datetime
+                f.write(f"checked at {datetime.datetime.now()}")
+            logger.info("📋 Dependency check flag created")
+        except Exception:
+            pass
     
     logger.info("=== Dependency Check: Complete ===")
     
