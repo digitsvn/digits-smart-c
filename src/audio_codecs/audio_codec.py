@@ -1,5 +1,7 @@
 import asyncio
 import gc
+import os
+import subprocess
 import time
 from collections import deque
 from typing import Optional
@@ -234,8 +236,7 @@ class AudioCodec:
         Extract ALSA card name từ sounddevice device name.
         Ví dụ: "vc4-hdmi-0: MAI PCM i2s-hifi-0 (hw:1,0)" -> "vc4hdmi0"
         """
-        import subprocess
-        
+
         # Thử lấy từ aplay -l để có card name chính xác
         try:
             result = subprocess.run(
@@ -282,9 +283,7 @@ class AudioCodec:
         Set ALSA default output device to HDMI.
         Tạo file ~/.asoundrc hoặc set environment.
         """
-        import subprocess
-        import os
-        
+
         try:
             hdmi_card = self._hdmi_device_name or "vc4hdmi0"
             
@@ -299,8 +298,8 @@ class AudioCodec:
                     capture_output=True, timeout=5
                 )
                 logger.info(f"HDMI volume set to 100% on {hdmi_card}")
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"amixer set volume failed: {e}")
             
             logger.info(f"ALSA HDMI default set: {hdmi_card}")
             
@@ -312,8 +311,7 @@ class AudioCodec:
         Khởi động aplay subprocess cho HDMI output.
         aplay nhận raw PCM data từ stdin.
         """
-        import subprocess
-        
+
         try:
             hdmi_card = self._hdmi_device_name or "vc4hdmi0"
             
@@ -350,29 +348,51 @@ class AudioCodec:
                 self._hdmi_aplay_process.stdin.close()
                 self._hdmi_aplay_process.terminate()
                 self._hdmi_aplay_process.wait(timeout=2)
-            except:
+            except Exception as e:
+                logger.debug(f"aplay terminate failed: {e}")
                 try:
                     self._hdmi_aplay_process.kill()
-                except:
+                except Exception:
                     pass
             self._hdmi_aplay_process = None
             logger.info("HDMI aplay stopped")
+    
+    def _check_aplay_health(self) -> bool:
+        """
+        Kiểm tra aplay process còn hoạt động không.
+        Returns True nếu healthy, False nếu cần restart.
+        """
+        if not self._hdmi_aplay_process:
+            return False
+        
+        # poll() returns None nếu process còn chạy
+        return self._hdmi_aplay_process.poll() is None
     
     def _write_hdmi_audio(self, audio_data):
         """
         Ghi audio data vào HDMI aplay process.
         audio_data: numpy array int16
         """
+        # Health check trước khi ghi
+        if not self._check_aplay_health():
+            logger.warning("HDMI aplay process died, restarting...")
+            self._stop_hdmi_aplay()
+            self._start_hdmi_aplay()
+            if not self._check_aplay_health():
+                logger.error("Failed to restart HDMI aplay")
+                return
+        
         if self._hdmi_aplay_process and self._hdmi_aplay_process.stdin:
             try:
                 self._hdmi_aplay_process.stdin.write(audio_data.tobytes())
                 self._hdmi_aplay_process.stdin.flush()
-            except Exception as e:
-                # Restart aplay nếu bị lỗi
-                logger.warning(f"HDMI aplay write error: {e}, restarting...")
+            except BrokenPipeError:
+                # aplay process đã chết
+                logger.warning("HDMI aplay broken pipe, restarting...")
                 self._stop_hdmi_aplay()
                 self._start_hdmi_aplay()
-
+            except Exception as e:
+                logger.warning(f"HDMI aplay write error: {e}")
     async def initialize(self):
         """
         Khởi tạo thiết bị âm thanh.

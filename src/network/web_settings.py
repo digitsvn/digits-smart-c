@@ -1864,19 +1864,30 @@ class WebSettingsServer:
             input_device_name = audio_config.get("input_device_name", "")
             output_device_name = audio_config.get("output_device_name", "")
             
-            # Xác định ALSA card cho input
-            # Ưu tiên googlevoicehat nếu I2S enabled
+            # Ưu tiên I2S card nếu enabled
             arecord_device = "default"
             if i2s_enabled:
-                # Thử tìm googlevoicehat card
-                result = subprocess.run(
-                    ["arecord", "-l"],
-                    capture_output=True, text=True, timeout=5
-                )
-                if "googlevoicehat" in result.stdout.lower():
-                    arecord_device = "plughw:CARD=googlevoicehat"
-                elif "simple" in result.stdout.lower():
-                    arecord_device = "plughw:CARD=simple"
+                # Tìm I2S card từ arecord -l
+                # Format: "card 3: sndrpigooglevoi [snd_rpi_googlevoicehat...]"
+                try:
+                    result = subprocess.run(
+                        ["arecord", "-l"],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    for line in result.stdout.split('\n'):
+                        line_lower = line.lower()
+                        if 'card' in line_lower and ('google' in line_lower or 'voicehat' in line_lower or 'i2s' in line_lower or 'inmp441' in line_lower):
+                            # Extract card name: "card 3: sndrpigooglevoi [..."
+                            parts = line.split(':')
+                            if len(parts) >= 2:
+                                card_part = parts[1].strip()
+                                card_name = card_part.split()[0].split('[')[0].strip()
+                                if card_name:
+                                    arecord_device = f"plughw:CARD={card_name}"
+                                    logger.info(f"Detected I2S MIC card: {card_name}")
+                                    break
+                except Exception as e:
+                    logger.warning(f"arecord -l failed: {e}")
             
             channels = 2 if i2s_stereo else 1
             sample_rate = 16000
