@@ -140,14 +140,16 @@ configure_i2s_mic() {
     fi
     
     # Kiểm tra xem đã có overlay chưa
-    if grep -q "dtoverlay=i2s-mmap" "$CONFIG_FILE" 2>/dev/null; then
+    if grep -q "dtoverlay=googlevoicehat-soundcard" "$CONFIG_FILE" 2>/dev/null; then
         log "✓ I2S overlay đã được cấu hình"
-        return
-    fi
-    
-    # Thêm I2S overlay
-    log "Thêm I2S overlay cho INMP441..."
-    cat << 'I2S_CONFIG' | sudo tee -a "$CONFIG_FILE" > /dev/null
+    else
+        # Xóa overlay cũ nếu có
+        sudo sed -i '/dtoverlay=i2s-mmap/d' "$CONFIG_FILE" 2>/dev/null || true
+        sudo sed -i '/dtparam=i2s=on/d' "$CONFIG_FILE" 2>/dev/null || true
+        
+        # Thêm I2S overlay
+        log "Thêm I2S overlay cho INMP441..."
+        cat << 'I2S_CONFIG' | sudo tee -a "$CONFIG_FILE" > /dev/null
 
 # ============================================
 # I2S Microphone (INMP441) Configuration
@@ -155,14 +157,50 @@ configure_i2s_mic() {
 # Enable I2S interface
 dtparam=i2s=on
 
-# I2S memory mapping for better performance
-dtoverlay=i2s-mmap
-
-# For stereo INMP441 (2 mics L+R)
-# dtoverlay=googlevoicehat-soundcard
+# Google Voice HAT overlay (hỗ trợ I2S mic như INMP441)
+dtoverlay=googlevoicehat-soundcard
 I2S_CONFIG
+        
+        log "✓ I2S overlay đã thêm vào $CONFIG_FILE"
+    fi
     
-    log "✓ I2S overlay đã cấu hình"
+    # Tạo ASOUND config cho I2S
+    log "Cấu hình ALSA cho I2S mic..."
+    cat > /tmp/i2s_asound.conf << 'EOF'
+# I2S Microphone Configuration
+pcm.i2s_mic {
+    type hw
+    card googlevoicehat
+    device 0
+}
+
+pcm.i2s_mic_plug {
+    type plug
+    slave.pcm "i2s_mic"
+}
+EOF
+    
+    # Append to existing asoundrc if exists
+    if [ -f "$HOME/.asoundrc" ]; then
+        if ! grep -q "pcm.i2s_mic" "$HOME/.asoundrc" 2>/dev/null; then
+            cat /tmp/i2s_asound.conf >> "$HOME/.asoundrc"
+            log "✓ Đã thêm I2S config vào ~/.asoundrc"
+        fi
+    fi
+    rm -f /tmp/i2s_asound.conf
+    
+    # Load modules (sẽ có effect sau reboot)
+    log "Load I2S kernel modules..."
+    sudo modprobe snd-soc-bcm2835-i2s 2>/dev/null || true
+    sudo modprobe snd-soc-simple-card 2>/dev/null || true
+    
+    # Thêm modules vào auto-load
+    if ! grep -q "snd-soc-bcm2835-i2s" /etc/modules 2>/dev/null; then
+        echo "snd-soc-bcm2835-i2s" | sudo tee -a /etc/modules > /dev/null
+    fi
+    
+    log "✓ I2S microphone đã cấu hình"
+    log ""
     log "📌 Kết nối INMP441 → Raspberry Pi:"
     log "   ┌─────────────────────────────────────┐"
     log "   │  INMP441     →    Raspberry Pi     │"
@@ -175,6 +213,8 @@ I2S_CONFIG
     log "   │  L/R         →    GND (Left only)  │"
     log "   └─────────────────────────────────────┘"
     log "   Dual mic: Mic 1 L/R→GND, Mic 2 L/R→3.3V"
+    log ""
+    log "⚠️  REBOOT cần thiết để I2S hoạt động!"
 }
 
 # =============================================================================
