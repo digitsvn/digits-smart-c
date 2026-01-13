@@ -10,6 +10,7 @@ import sounddevice as sd
 import soxr
 
 from src.audio_codecs.aec_processor import AECProcessor
+from src.audio_codecs.beamforming import BeamformingProcessor
 from src.constants.constants import AudioConfig
 from src.utils.config_manager import ConfigManager
 from src.utils.logging_config import get_logger
@@ -73,6 +74,12 @@ class AudioCodec:
         # I2S INMP441 Microphone support
         self._i2s_enabled = False
         self._i2s_stereo = False  # True nếu có 2 mic (stereo beamforming)
+        
+        # Beamforming processor for dual mic
+        self.beamforming = BeamformingProcessor()
+        self._beamforming_enabled = False
+        self._mic_distance = 8.0  # Default 8cm giữa 2 mic
+        self._speaker_angle = 180.0  # Default loa ở phía sau
         
         # Debug logging
         self._last_log_time = 0
@@ -300,8 +307,20 @@ class AudioCodec:
             self._i2s_enabled = audio_config.get("i2s_enabled", False)
             self._i2s_stereo = audio_config.get("i2s_stereo", False)
             
+            # Load beamforming configuration
+            self._beamforming_enabled = audio_config.get("beamforming_enabled", False)
+            self._mic_distance = audio_config.get("mic_distance", 8.0)
+            self._speaker_angle = audio_config.get("speaker_angle", 180.0)
+            
             if self._i2s_enabled:
                 logger.info(f"I2S Mode: {'Stereo (2 INMP441)' if self._i2s_stereo else 'Mono (1 INMP441)'}")
+            
+            # Cấu hình beamforming nếu stereo enabled
+            if self._i2s_stereo and self._beamforming_enabled:
+                self.beamforming.set_mic_distance(self._mic_distance)
+                self.beamforming.enable(True)
+                self.beamforming.enable_null_steering(True)
+                logger.info(f"Beamforming enabled: mic_distance={self._mic_distance}cm, speaker_angle={self._speaker_angle}°")
 
             # Có cấu hình rõ ràng chưa (quyết định có ghi lại hay không)
             had_cfg_input = "input_device_id" in audio_config
@@ -537,11 +556,17 @@ class AudioCodec:
             
             audio_data = indata.copy()
             
-            # I2S Stereo Processing: Mix 2 channels thành 1 (beamforming đơn giản)
+            # I2S Stereo Processing
             if self._i2s_enabled and self._i2s_stereo and len(audio_data.shape) > 1 and audio_data.shape[1] == 2:
-                # Average của 2 channels (simple beamforming)
-                # Có thể cải tiến thành delay-and-sum beamforming sau
-                audio_data = np.mean(audio_data, axis=1).astype(np.int16)
+                if self._beamforming_enabled:
+                    # Delay-and-Sum Beamforming với null steering
+                    audio_data = self.beamforming.process(
+                        audio_data, 
+                        speaker_angle=self._speaker_angle
+                    )
+                else:
+                    # Simple averaging (fallback)
+                    audio_data = np.mean(audio_data, axis=1).astype(np.int16)
             else:
                 audio_data = audio_data.flatten()
 

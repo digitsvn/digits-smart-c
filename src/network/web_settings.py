@@ -257,9 +257,25 @@ DASHBOARD_HTML = """
                 </label>
                 <div id="i2sOptions" style="margin-top: 10px; display: none;">
                     <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-left: 30px;">
-                        <input type="checkbox" id="i2sStereo" style="width: 18px; height: 18px;">
-                        <span>Stereo (2 mic L+R cho beamforming)</span>
+                        <input type="checkbox" id="i2sStereo" onchange="toggleBeamforming()" style="width: 18px; height: 18px;">
+                        <span>Stereo (2 mic L+R)</span>
                     </label>
+                    <div id="beamformingOptions" style="margin-top: 15px; margin-left: 30px; display: none;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="beamformingEnabled" style="width: 18px; height: 18px;">
+                            <span>🎯 Beamforming (khử nhiễu loa)</span>
+                        </label>
+                        <div style="margin-top: 10px;">
+                            <label style="font-size: 13px; color: #94a3b8;">Khoảng cách 2 mic (cm):</label>
+                            <input type="number" id="micDistance" value="8" min="2" max="20" step="0.5"
+                                style="width: 70px; padding: 5px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff;">
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <label style="font-size: 13px; color: #94a3b8;">Góc loa (°): 0=trước, 180=sau</label>
+                            <input type="number" id="speakerAngle" value="180" min="0" max="360" step="15"
+                                style="width: 70px; padding: 5px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff;">
+                        </div>
+                    </div>
                     <div style="font-size: 12px; color: #94a3b8; margin-top: 10px; margin-left: 30px;">
                         📌 Kết nối: VDD→3.3V, GND→GND, SD→GPIO20, WS→GPIO19, SCK→GPIO18
                     </div>
@@ -646,6 +662,14 @@ DASHBOARD_HTML = """
         function toggleI2S() {
             const enabled = document.getElementById('i2sEnabled').checked;
             document.getElementById('i2sOptions').style.display = enabled ? 'block' : 'none';
+            if (!enabled) {
+                document.getElementById('beamformingOptions').style.display = 'none';
+            }
+        }
+        
+        function toggleBeamforming() {
+            const stereo = document.getElementById('i2sStereo').checked;
+            document.getElementById('beamformingOptions').style.display = stereo ? 'block' : 'none';
         }
         
         async function saveAudio() {
@@ -655,12 +679,19 @@ DASHBOARD_HTML = """
             const speakerVolume = document.getElementById('speakerVolume').value;
             const i2sEnabled = document.getElementById('i2sEnabled').checked;
             const i2sStereo = document.getElementById('i2sStereo').checked;
+            const beamformingEnabled = document.getElementById('beamformingEnabled').checked;
+            const micDistance = parseFloat(document.getElementById('micDistance').value) || 8;
+            const speakerAngle = parseFloat(document.getElementById('speakerAngle').value) || 180;
             
             try {
                 const resp = await fetch('/api/audio', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({micDevice, speakerDevice, micVolume, speakerVolume, i2sEnabled, i2sStereo})
+                    body: JSON.stringify({
+                        micDevice, speakerDevice, micVolume, speakerVolume, 
+                        i2sEnabled, i2sStereo,
+                        beamformingEnabled, micDistance, speakerAngle
+                    })
                 });
                 const data = await resp.json();
                 showStatus('micStatus', data.success ? 'success' : 'error', data.message);
@@ -714,7 +745,14 @@ DASHBOARD_HTML = """
                 // I2S settings
                 document.getElementById('i2sEnabled').checked = data.i2s_enabled || false;
                 document.getElementById('i2sStereo').checked = data.i2s_stereo || false;
+                
+                // Beamforming settings
+                document.getElementById('beamformingEnabled').checked = data.beamforming_enabled || false;
+                document.getElementById('micDistance').value = data.mic_distance || 8;
+                document.getElementById('speakerAngle').value = data.speaker_angle || 180;
+                
                 toggleI2S();
+                toggleBeamforming();
             } catch (e) {
                 console.error('Load audio devices failed:', e);
             }
@@ -1111,6 +1149,9 @@ class WebSettingsServer:
             audio_devices_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
             i2s_enabled = audio_devices_config.get("i2s_enabled", False)
             i2s_stereo = audio_devices_config.get("i2s_stereo", False)
+            beamforming_enabled = audio_devices_config.get("beamforming_enabled", False)
+            mic_distance = audio_devices_config.get("mic_distance", 8.0)
+            speaker_angle = audio_devices_config.get("speaker_angle", 180.0)
             
             return web.json_response({
                 "input_devices": input_devices,
@@ -1121,6 +1162,9 @@ class WebSettingsServer:
                 "speaker_volume": speaker_volume,
                 "i2s_enabled": i2s_enabled,
                 "i2s_stereo": i2s_stereo,
+                "beamforming_enabled": beamforming_enabled,
+                "mic_distance": mic_distance,
+                "speaker_angle": speaker_angle,
             })
         except Exception as e:
             return web.json_response({"input_devices": [], "output_devices": [], "error": str(e)})
@@ -1136,16 +1180,22 @@ class WebSettingsServer:
             speaker_volume = int(data.get("speakerVolume", 80))
             i2s_enabled = data.get("i2sEnabled", False)
             i2s_stereo = data.get("i2sStereo", False)
+            beamforming_enabled = data.get("beamformingEnabled", False)
+            mic_distance = float(data.get("micDistance", 8.0))
+            speaker_angle = float(data.get("speakerAngle", 180.0))
             
             self.config.update_config("AUDIO.INPUT_DEVICE_INDEX", mic_device)
             self.config.update_config("AUDIO.OUTPUT_DEVICE_INDEX", speaker_device)
             self.config.update_config("AUDIO.MIC_VOLUME", mic_volume)
             self.config.update_config("AUDIO.SPEAKER_VOLUME", speaker_volume)
             
-            # I2S settings trong AUDIO_DEVICES
+            # I2S & Beamforming settings trong AUDIO_DEVICES
             audio_devices = self.config.get_config("AUDIO_DEVICES", {}) or {}
             audio_devices["i2s_enabled"] = i2s_enabled
             audio_devices["i2s_stereo"] = i2s_stereo
+            audio_devices["beamforming_enabled"] = beamforming_enabled
+            audio_devices["mic_distance"] = mic_distance
+            audio_devices["speaker_angle"] = speaker_angle
             self.config.update_config("AUDIO_DEVICES", audio_devices)
             
             # Áp dụng volume ngay bằng amixer
@@ -1158,6 +1208,8 @@ class WebSettingsServer:
             msg = "Đã lưu cài đặt âm thanh!"
             if i2s_enabled:
                 msg += " (I2S: " + ("Stereo" if i2s_stereo else "Mono") + ")"
+            if beamforming_enabled and i2s_stereo:
+                msg += f" + Beamforming (mic: {mic_distance}cm, loa: {speaker_angle}°)"
             
             return web.json_response({"success": True, "message": msg})
         except Exception as e:
