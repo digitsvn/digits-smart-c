@@ -357,16 +357,15 @@ class AudioCodec:
         
         for device in device_options:
             # Buffer lớn để tránh ngắt quãng (underrun)
-            # --buffer-size: tổng buffer (samples)
-            # --period-size: mỗi lần write (samples)
+            # -B: buffer time in microseconds
+            # 500000us = 0.5s buffer (không gây delay vì audio tích lũy)
             cmd = [
                 "aplay",
                 "-D", device,
                 "-f", "S16_LE",
                 "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
                 "-c", "1",
-                "--buffer-size=8192",  # ~0.5 giây buffer @16kHz
-                "--period-size=1024",  # ~64ms mỗi chunk
+                "-B", "500000",  # 0.5 giây buffer (microseconds)
                 "-q",
                 "-"
             ]
