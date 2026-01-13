@@ -72,10 +72,6 @@ APT_PACKAGES = [
     ("", "python3-numpy"),
     ("", "python3-pil"),
     
-    # === OpenCV dependencies ===
-    ("", "libatlas-base-dev"),
-    ("", "libhdf5-dev"),
-    
     # === Network ===
     ("curl", "curl"),
     ("wget", "wget"),

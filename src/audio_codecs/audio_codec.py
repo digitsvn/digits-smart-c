@@ -230,7 +230,7 @@ class AudioCodec:
         Cũng lưu tên device cho aplay.
         """
         hdmi_keywords = [
-            "vc4hdmi", "hdmi", "vc4-hdmi"
+            "vc4hdmi", "hdmi", "vc4-hdmi", "bcm2835 hdmi"
         ]
         
         for i, d in enumerate(devices):
@@ -240,9 +240,16 @@ class AudioCodec:
                     if keyword in device_name:
                         logger.info(f"Tìm thấy HDMI device: [{i}] {d['name']}")
                         # Lưu device name cho aplay (extract CARD name)
-                        # Device name format: "vc4hdmi0: vc4-hdmi-0, bcm2835 HDMI 1"
                         self._hdmi_device_name = self._extract_alsa_card_name(d["name"])
                         return i
+        
+        # Fallback: Tìm từ aplay -l và set device name trực tiếp
+        hdmi_card_num = self._find_hdmi_card_number()
+        if hdmi_card_num is not None:
+            logger.info(f"Fallback: Found HDMI từ aplay -l, card={hdmi_card_num}")
+            self._hdmi_device_name = f"hw{hdmi_card_num}"  # sẽ dùng plughw:X,0
+            # Return device index không quan trọng vì sẽ dùng aplay
+            return -1  # Special marker cho aplay mode
         
         return None
     
