@@ -91,6 +91,9 @@ class AudioCodec:
         self._jack_aplay_process = None  # Subprocess for 3.5mm output
         self._jack_use_aplay = False
         
+        # PulseAudio support (giải quyết conflict video vs AI audio)
+        self._pulseaudio_enabled = False
+        
         # Beamforming processor for dual mic
         self.beamforming = BeamformingProcessor()
         self._beamforming_enabled = False
@@ -320,31 +323,72 @@ class AudioCodec:
     
     def _start_hdmi_aplay(self):
         """
-        Khởi động aplay subprocess cho HDMI output.
-        aplay nhận raw PCM data từ stdin.
-        Sử dụng dmix để chia sẻ device với video.
+        Khởi động audio subprocess cho HDMI output.
+        - Nếu có PulseAudio: dùng paplay (chia sẻ output với video)
+        - Nếu không: dùng aplay với nhiều device options
         """
         
         hdmi_card = self._hdmi_device_name or "vc4hdmi0"
         
+        # ===== PHƯƠNG ÁN 1: Dùng PulseAudio paplay (recommended) =====
+        if self._pulseaudio_enabled:
+            try:
+                # paplay đọc từ stdin với format raw
+                cmd = [
+                    "paplay",
+                    "--raw",
+                    "--format=s16le",
+                    f"--rate={AudioConfig.OUTPUT_SAMPLE_RATE}",
+                    "--channels=1"
+                ]
+                
+                logger.info(f"Starting PulseAudio paplay: {' '.join(cmd)}")
+                self._hdmi_aplay_process = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE
+                )
+                
+                time.sleep(0.3)
+                if self._hdmi_aplay_process.poll() is not None:
+                    stderr_output = self._hdmi_aplay_process.stderr.read().decode('utf-8', errors='ignore')
+                    logger.warning(f"paplay failed: {stderr_output[:100]}")
+                else:
+                    # Warmup
+                    try:
+                        silence = b'\x00' * 4800
+                        self._hdmi_aplay_process.stdin.write(silence)
+                        self._hdmi_aplay_process.stdin.flush()
+                    except Exception as e:
+                        logger.warning(f"paplay warmup failed: {e}")
+                    
+                    self._hdmi_use_aplay = True
+                    logger.info("🔊 HDMI output via PulseAudio paplay")
+                    return
+                    
+            except FileNotFoundError:
+                logger.warning("paplay not found, falling back to aplay")
+            except Exception as e:
+                logger.warning(f"paplay failed: {e}")
+        
+        # ===== PHƯƠNG ÁN 2: Dùng ALSA aplay trực tiếp =====
         # Thử nhiều device format khác nhau
-        # dmix cho phép multiple apps share device
         device_options = [
-            f"dmix:CARD={hdmi_card}",      # dmix - shared access (preferred)
-            f"default:CARD={hdmi_card}",   # default với dmix
-            f"sysdefault:CARD={hdmi_card}", # system default
-            f"plughw:CARD={hdmi_card}",    # direct (exclusive) - fallback
+            f"dmix:CARD={hdmi_card}",
+            f"sysdefault:CARD={hdmi_card}",
+            f"plughw:CARD={hdmi_card}",
         ]
         
         for device in device_options:
             cmd = [
                 "aplay",
                 "-D", device,
-                "-f", "S16_LE",  # Signed 16-bit Little Endian
+                "-f", "S16_LE",
                 "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
-                "-c", "1",  # Mono
-                "-q",  # Quiet
-                "-"  # Read from stdin
+                "-c", "1",
+                "-q",
+                "-"
             ]
             
             try:
@@ -356,16 +400,15 @@ class AudioCodec:
                     stderr=subprocess.PIPE
                 )
                 
-                # Đợi ngắn để xem aplay có lỗi ngay không
                 time.sleep(0.3)
                 if self._hdmi_aplay_process.poll() is not None:
                     stderr_output = self._hdmi_aplay_process.stderr.read().decode('utf-8', errors='ignore')
                     logger.warning(f"Device {device} failed: {stderr_output[:100]}")
-                    continue  # Thử device tiếp theo
+                    continue
                 
-                # Gửi silence ngắn để "warm up" pipeline
+                # Warmup
                 try:
-                    silence = b'\x00' * 4800  # ~50ms of silence at 16kHz mono
+                    silence = b'\x00' * 4800
                     self._hdmi_aplay_process.stdin.write(silence)
                     self._hdmi_aplay_process.stdin.flush()
                 except Exception as e:
@@ -380,8 +423,8 @@ class AudioCodec:
                 logger.warning(f"Device {device} exception: {e}")
                 continue
         
-        # Hết tất cả device options
-        logger.error(f"Failed to start HDMI aplay with any device: {device_options}")
+        # Hết options
+        logger.error(f"Failed to start HDMI audio output with any method")
         self._hdmi_use_aplay = False
     
     def _stop_hdmi_aplay(self):
@@ -531,6 +574,17 @@ class AudioCodec:
         try:
             logger.info("=== Bắt đầu khởi tạo Audio Codec ===")
             
+            # 🔊 Audio Setup: Restart PulseAudio và các services
+            # Giải quyết conflict giữa video (gstreamer) và AI audio (aplay)
+            try:
+                from src.audio_codecs.audio_setup import setup_audio_environment
+                self._pulseaudio_enabled = setup_audio_environment()
+                if self._pulseaudio_enabled:
+                    logger.info("✅ PulseAudio ready - sẽ dùng paplay cho audio output")
+            except Exception as e:
+                logger.warning(f"Audio setup failed: {e}")
+                self._pulseaudio_enabled = False
+            
             # Hiển thị và chọn thiết bị âm thanh (tự động chọn lần đầu và ghi vào cấu hình; không ghi đè sau đó)
             await self._select_audio_devices()
             
@@ -540,7 +594,7 @@ class AudioCodec:
             # Set ALSA default device cho HDMI nếu enabled
             if self._hdmi_audio and self._hdmi_device_name:
                 self._set_alsa_hdmi_default()
-                # Khởi động aplay subprocess cho HDMI output
+                # Khởi động aplay/paplay subprocess cho HDMI output
                 self._start_hdmi_aplay()
                 if self._hdmi_use_aplay:
                     logger.info("🔊 HDMI output sẽ dùng aplay thay vì sounddevice")
