@@ -1769,57 +1769,91 @@ class WebSettingsServer:
     async def _handle_test_speaker(self, request):
         """Test speaker - phát âm thanh beep."""
         try:
-            import sounddevice as sd
             import numpy as np
+            import wave
+            import tempfile
+            import os
             
             # Lấy output device từ config
             audio_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
-            output_device_id = self.config.get_config("AUDIO.OUTPUT_DEVICE_INDEX")
             hdmi_audio = audio_config.get("hdmi_audio", False)
             
-            # Tìm device phù hợp
-            devices = sd.query_devices()
-            output_device = None
-            device_name = "Default"
-            
-            if hdmi_audio:
-                # Tìm HDMI device
-                for i, d in enumerate(devices):
-                    if d['max_output_channels'] > 0 and ('hdmi' in d['name'].lower() or 'vc4' in d['name'].lower()):
-                        output_device = i
-                        device_name = d['name']
-                        break
-            elif output_device_id is not None:
-                output_device = output_device_id
-                if 0 <= output_device_id < len(devices):
-                    device_name = devices[output_device_id]['name']
-            
-            logger.info(f"Test Speaker: Playing beep on '{device_name}' (HDMI: {hdmi_audio})...")
+            logger.info(f"Test Speaker: HDMI={hdmi_audio}")
             
             # Tạo beep tone
             sample_rate = 44100
-            duration = 0.5
-            frequency = 440  # A4 note
+            duration = 0.3
+            frequency = 880  # A5 note - higher pitch, easier to hear
             
             t = np.linspace(0, duration, int(sample_rate * duration), False)
-            # Sine wave with fade in/out - scale to int16 range
-            beep = np.sin(2 * np.pi * frequency * t) * 16000  # Scale for int16
-            fade_samples = int(sample_rate * 0.05)
+            beep = np.sin(2 * np.pi * frequency * t) * 20000
+            fade_samples = int(sample_rate * 0.02)
             beep[:fade_samples] *= np.linspace(0, 1, fade_samples)
             beep[-fade_samples:] *= np.linspace(1, 0, fade_samples)
-            beep = beep.astype(np.int16)  # Use int16 for HDMI compatibility
+            beep = beep.astype(np.int16)
             
-            # Phát 3 beep
-            for i in range(3):
-                sd.play(beep, sample_rate, device=output_device)
+            # Tạo 3 beeps với khoảng cách
+            silence = np.zeros(int(sample_rate * 0.15), dtype=np.int16)
+            full_audio = np.concatenate([beep, silence, beep, silence, beep])
+            
+            # Lưu thành WAV file
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+                temp_wav = f.name
+            
+            with wave.open(temp_wav, 'w') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)  # 16-bit
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(full_audio.tobytes())
+            
+            if hdmi_audio:
+                # Dùng aplay với HDMI device
+                device_name = "HDMI (vc4hdmi)"
+                # Thử các HDMI device names phổ biến trên Pi
+                hdmi_devices = ['vc4hdmi0', 'vc4hdmi1', 'vc4hdmi', 'hdmi']
+                played = False
+                
+                for hdmi_dev in hdmi_devices:
+                    cmd = f'aplay -D plughw:CARD={hdmi_dev} {temp_wav} 2>&1'
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        device_name = f"HDMI ({hdmi_dev})"
+                        played = True
+                        logger.info(f"Played via: {cmd}")
+                        break
+                    else:
+                        logger.debug(f"Failed {hdmi_dev}: {result.stderr}")
+                
+                if not played:
+                    # Fallback: aplay với default
+                    cmd = f'aplay {temp_wav} 2>&1'
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        device_name = "Default (ALSA)"
+                        played = True
+                
+                if not played:
+                    os.unlink(temp_wav)
+                    return web.json_response({
+                        "success": False,
+                        "message": "❌ Không thể phát qua HDMI. Kiểm tra kết nối và volume TV."
+                    })
+            else:
+                # Dùng sounddevice cho headphone jack
+                import sounddevice as sd
+                device_name = "Headphone (3.5mm)"
+                sd.play(full_audio, sample_rate)
                 sd.wait()
-                if i < 2:
-                    import time
-                    time.sleep(0.2)
+            
+            # Cleanup
+            try:
+                os.unlink(temp_wav)
+            except:
+                pass
             
             return web.json_response({
                 "success": True, 
-                "message": f"✅ Đã phát 3 beep qua '{device_name}'! Bạn có nghe thấy không?"
+                "message": f"✅ Đã phát 3 beep qua {device_name}! Bạn có nghe thấy không?"
             })
             
         except Exception as e:
