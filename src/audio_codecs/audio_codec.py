@@ -428,7 +428,10 @@ class AudioCodec:
                 self._set_alsa_hdmi_default()
                 # Khởi động aplay subprocess cho HDMI output
                 self._start_hdmi_aplay()
-                logger.info("🔊 HDMI output sẽ dùng aplay thay vì sounddevice")
+                if self._hdmi_use_aplay:
+                    logger.info("🔊 HDMI output sẽ dùng aplay thay vì sounddevice")
+                else:
+                    logger.warning("⚠️ HDMI aplay failed, sẽ thử sounddevice hoặc skip output")
 
             # Lấy thông tin mặc định đầu vào/đầu ra an toàn (tránh -1)
             try:
@@ -773,10 +776,14 @@ class AudioCodec:
                     out_dev = devices[self.speaker_device_id]
                     logger.info(f"🔊 Output device: [{self.speaker_device_id}] {out_dev['name']} (HDMI: {getattr(self, '_hdmi_audio', False)})")
 
-            # Khi dùng HDMI aplay, KHÔNG tạo sounddevice OutputStream
             # vì aplay đã xử lý output rồi
             if self._hdmi_use_aplay:
                 logger.info("🔊 Bỏ qua sounddevice OutputStream - dùng aplay cho HDMI")
+                self.output_stream = None
+            elif self._hdmi_audio and not self._hdmi_use_aplay:
+                # HDMI được bật nhưng aplay fail (có thể device busy bởi video)
+                # Skip sounddevice vì cũng sẽ fail với cùng lý do
+                logger.warning("⚠️ HDMI audio enabled nhưng aplay không khởi động được - skip output")
                 self.output_stream = None
             else:
                 self.output_stream = sd.OutputStream(
