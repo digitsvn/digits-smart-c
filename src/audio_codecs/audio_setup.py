@@ -45,8 +45,59 @@ def kill_audio_processes():
     logger.info("🔇 Killed stale audio processes")
 
 
+def check_pulseaudio_installed() -> bool:
+    """Kiểm tra PulseAudio đã được cài đặt chưa."""
+    try:
+        result = subprocess.run(['which', 'pulseaudio'], 
+                               capture_output=True, timeout=5)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def install_pulseaudio() -> bool:
+    """Cài đặt PulseAudio nếu chưa có."""
+    logger.info("📦 PulseAudio chưa được cài đặt, đang cài...")
+    
+    try:
+        # Update apt cache
+        result = subprocess.run(
+            ['sudo', 'apt-get', 'update', '-qq'],
+            capture_output=True, timeout=60
+        )
+        
+        # Install pulseaudio
+        result = subprocess.run(
+            ['sudo', 'apt-get', 'install', '-y', '-qq', 
+             'pulseaudio', 'pulseaudio-utils'],
+            capture_output=True, timeout=120
+        )
+        
+        if result.returncode == 0:
+            logger.info("✅ PulseAudio installed successfully!")
+            return True
+        else:
+            stderr = result.stderr.decode('utf-8', errors='ignore')
+            logger.error(f"❌ Failed to install PulseAudio: {stderr[:200]}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logger.error("❌ PulseAudio installation timed out")
+        return False
+    except Exception as e:
+        logger.error(f"❌ PulseAudio installation error: {e}")
+        return False
+
+
 def restart_pulseaudio():
-    """Restart PulseAudio daemon."""
+    """Restart PulseAudio daemon. Cài đặt nếu chưa có."""
+    
+    # Kiểm tra và cài đặt nếu cần
+    if not check_pulseaudio_installed():
+        if not install_pulseaudio():
+            logger.warning("PulseAudio not available, using ALSA directly")
+            return False
+    
     try:
         # Kill existing pulseaudio
         subprocess.run(['pulseaudio', '--kill'], 
