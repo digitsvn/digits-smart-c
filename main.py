@@ -1,8 +1,15 @@
 import argparse
 import asyncio
+import os
 import signal
 import sys
 from pathlib import Path
+
+# ⚠️ CRITICAL: Set gstreamer audio sink TRƯỚC khi import bất kỳ Qt module nào
+# Điều này ngăn video player chiếm HDMI audio device
+# Phải set TRƯỚC khi gstreamer/Qt được load!
+os.environ.setdefault("GST_AUDIO_SINK", "fakesink")
+os.environ.setdefault("PULSE_SINK", "null")
 
 from src.application import Application
 from src.utils.logging_config import get_logger, setup_logging

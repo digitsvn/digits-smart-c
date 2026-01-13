@@ -239,16 +239,10 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
                 }
                 self.logger.info(f"[VIDEO] Fallback từ CAMERA config: {video_cfg}")
         
-        # ⚠️ HDMI audio và video MP4 không thể cùng sử dụng
-        # gstreamer chiếm HDMI device, aplay không thể truy cập
-        if hdmi_audio_enabled and video_cfg.get("ENABLED"):
-            self.logger.warning(
-                "[VIDEO] ⚠️ HDMI audio enabled - Video MP4 bị TẮT để AI audio hoạt động. "
-                "Dùng GIF/WebP animated thay thế nếu cần video background."
-            )
-            self.display_model.update_video_frame_url("")
-            self.display_model.update_video_file_path("")
-            return
+        # HDMI audio và video có thể cùng hoạt động nhờ GST_AUDIO_SINK=fakesink
+        # được set ở main.py trước khi gstreamer load
+        if hdmi_audio_enabled:
+            self.logger.info("[VIDEO] HDMI audio enabled - Video vẫn chạy (gstreamer dùng fakesink cho audio)")
         
         # Kiểm tra có bật video không
         if not video_cfg.get("ENABLED"):
