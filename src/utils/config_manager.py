@@ -77,15 +77,15 @@ class ConfigManager:
             "output_device_name": None,
             "input_sample_rate": None,
             "output_sample_rate": None,
-            # I2S INMP441 Microphone settings
-            "i2s_enabled": False,
-            "i2s_stereo": False,
-            # Beamforming settings
-            "beamforming_enabled": False,
-            "mic_distance": 8.0,    # Khoảng cách giữa 2 mic (cm)
+            # I2S INMP441 Microphone settings - MẶC ĐỊNH BẬT cho Pi
+            "i2s_enabled": True,
+            "i2s_stereo": True,
+            # Beamforming settings - MẶC ĐỊNH BẬT
+            "beamforming_enabled": True,
+            "mic_distance": 6.0,    # Khoảng cách giữa 2 mic (cm)
             "speaker_angle": 180.0, # Góc của loa (180 = phía sau)
-            # HDMI Audio output
-            "hdmi_audio": False     # True = HDMI, False = 3.5mm jack
+            # HDMI Audio output - MẶC ĐỊNH BẬT
+            "hdmi_audio": True      # True = HDMI, False = 3.5mm jack
         },
         # Video Background settings
         "VIDEO_BACKGROUND": {

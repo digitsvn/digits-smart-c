@@ -200,6 +200,25 @@ class AudioCodec:
         
         return None
 
+    def _find_hdmi_device(self, devices) -> Optional[int]:
+        """
+        Tìm thiết bị HDMI audio output.
+        Ưu tiên các tên chứa 'hdmi', 'vc4hdmi'.
+        """
+        hdmi_keywords = [
+            "vc4hdmi", "hdmi", "vc4-hdmi"
+        ]
+        
+        for i, d in enumerate(devices):
+            device_name = d["name"].lower()
+            if d["max_output_channels"] > 0:
+                for keyword in hdmi_keywords:
+                    if keyword in device_name:
+                        logger.info(f"Tìm thấy HDMI device: [{i}] {d['name']}")
+                        return i
+        
+        return None
+
     async def initialize(self):
         """
         Khởi tạo thiết bị âm thanh.
@@ -322,6 +341,11 @@ class AudioCodec:
                 self.beamforming.enable_null_steering(True)
                 logger.info(f"Beamforming enabled: mic_distance={self._mic_distance}cm, speaker_angle={self._speaker_angle}°")
 
+            # HDMI audio configuration
+            self._hdmi_audio = audio_config.get("hdmi_audio", False)
+            if self._hdmi_audio:
+                logger.info("HDMI Audio output enabled")
+
             # Có cấu hình rõ ràng chưa (quyết định có ghi lại hay không)
             had_cfg_input = "input_device_id" in audio_config
             had_cfg_output = "output_device_id" in audio_config
@@ -337,6 +361,13 @@ class AudioCodec:
                 if i2s_device is not None:
                     input_device_id = i2s_device
                     logger.info(f"Auto-detected I2S microphone: [{i2s_device}] {devices[i2s_device]['name']}")
+
+            # Auto-detect HDMI output device nếu enabled
+            if self._hdmi_audio and output_device_id is None:
+                hdmi_device = self._find_hdmi_device(devices)
+                if hdmi_device is not None:
+                    output_device_id = hdmi_device
+                    logger.info(f"Auto-detected HDMI output: [{hdmi_device}] {devices[hdmi_device]['name']}")
 
             # --- Xác thực thiết bị đầu vào trong cấu hình ---
             if input_device_id is not None:
