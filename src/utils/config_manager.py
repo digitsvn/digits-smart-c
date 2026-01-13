@@ -206,10 +206,13 @@ class ConfigManager:
             self.config_dir.mkdir(parents=True, exist_ok=True)
 
             # Lưu tệp cấu hình
-            self.config_file.write_text(
-                json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
-            logger.debug(f"Cấu hình đã được lưu vào: {self.config_file}")
+            config_json = json.dumps(config, indent=2, ensure_ascii=False)
+            self.config_file.write_text(config_json, encoding="utf-8")
+            
+            # Log chi tiết AUDIO_DEVICES để debug
+            audio_devices = config.get("AUDIO_DEVICES", {})
+            logger.info(f"✅ Config saved to: {self.config_file}")
+            logger.info(f"   AUDIO_DEVICES: i2s={audio_devices.get('i2s_enabled')}, stereo={audio_devices.get('i2s_stereo')}, hdmi={audio_devices.get('hdmi_audio')}")
             return True
 
         except Exception as e:
