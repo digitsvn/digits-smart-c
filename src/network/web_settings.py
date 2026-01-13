@@ -664,12 +664,31 @@ DASHBOARD_HTML = """
             try {
                 const resp = await fetch('/api/test/mic', {method: 'POST'});
                 const data = await resp.json();
-                showStatus('micStatus', data.success ? 'success' : 'error', data.message);
+                
+                let statusMsg = data.message;
+                
+                // Nếu có audio, thêm nút nghe lại
+                if (data.audio) {
+                    statusMsg += ' <button onclick="playMicAudio()" style="margin-left: 10px; padding: 5px 10px; border-radius: 5px; background: #4CAF50; color: white; border: none; cursor: pointer;">🔊 Nghe lại trên Browser</button>';
+                    // Lưu audio data
+                    window.lastMicAudio = data.audio;
+                }
+                
+                showStatus('micStatus', data.success ? 'success' : 'error', statusMsg);
             } catch (e) {
                 showStatus('micStatus', 'error', 'Lỗi: ' + e.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = '🎤 Ghi âm 3s';
+            }
+        }
+        
+        function playMicAudio() {
+            if (window.lastMicAudio) {
+                const audio = new Audio('data:audio/wav;base64,' + window.lastMicAudio);
+                audio.play().catch(e => alert('Lỗi phát audio: ' + e.message));
+            } else {
+                alert('Chưa có audio ghi âm!');
             }
         }
         
@@ -1943,23 +1962,35 @@ class WebSettingsServer:
             except:
                 pass
             
+            # Đọc file WAV và convert sang base64 để phát trên browser
+            import base64
+            audio_base64 = ""
+            try:
+                with open(temp_wav, 'rb') as f:
+                    audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+            except:
+                pass
+            
             # Cleanup
             try:
                 os.unlink(temp_wav)
             except:
                 pass
             
-            # Return result
+            # Return result với audio data
+            mic_type = "I2S INMP441" if i2s_enabled else "USB/Analog"
+            
             if max_amplitude < 100:
                 return web.json_response({
                     "success": False,
-                    "message": f"⚠️ MIC yếu! Max: {max_amplitude} | {channel_info} | Device: {arecord_device}"
+                    "message": f"⚠️ MIC yếu! Max: {max_amplitude} | {channel_info} | Device: {arecord_device}",
+                    "audio": audio_base64
                 })
             
-            mic_type = "I2S INMP441" if i2s_enabled else "USB/Analog"
             return web.json_response({
                 "success": True,
-                "message": f"✅ {mic_type} OK! Max: {max_amplitude} | {channel_info} | In: {arecord_device} → Out: {aplay_device}"
+                "message": f"✅ {mic_type} OK! Max: {max_amplitude} | {channel_info} | In: {arecord_device}",
+                "audio": audio_base64
             })
             
         except Exception as e:
