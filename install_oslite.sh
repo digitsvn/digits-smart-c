@@ -557,6 +557,34 @@ EOF
 }
 
 # =============================================================================
+# BƯỚC 9: Cấu hình Log Rotation
+# =============================================================================
+configure_logrotate() {
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log "BƯỚC 9: Cấu hình Log Rotation"
+    log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Tạo script logrotate executable
+    chmod +x "$INSTALL_DIR/scripts/logrotate.sh" 2>/dev/null || true
+    
+    # Thêm vào crontab (chạy mỗi ngày lúc 00:00)
+    CRON_CMD="0 0 * * * $INSTALL_DIR/scripts/logrotate.sh >/dev/null 2>&1"
+    
+    # Kiểm tra nếu đã có trong crontab
+    if ! crontab -l 2>/dev/null | grep -q "logrotate.sh"; then
+        (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
+        log "✓ Đã thêm log rotation vào crontab"
+    else
+        log "✓ Log rotation đã có trong crontab"
+    fi
+    
+    # Tạo thư mục logs
+    mkdir -p "$INSTALL_DIR/logs"
+    
+    log "✓ Log rotation đã cấu hình"
+}
+
+# =============================================================================
 # HOÀN TẤT
 # =============================================================================
 print_complete() {
@@ -614,6 +642,7 @@ main() {
     configure_autostart
     configure_audio
     configure_network
+    configure_logrotate
     
     print_complete
     

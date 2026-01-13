@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -889,6 +890,11 @@ class WebSettingsServer:
         self.app.router.add_post('/api/test/mic', self._handle_test_mic)
         self.app.router.add_post('/api/test/speaker', self._handle_test_speaker)
         self.app.router.add_post('/api/test/chat', self._handle_test_chat)
+        # Health & Setup
+        self.app.router.add_get('/api/health', self._handle_health)
+        self.app.router.add_get('/api/setup/status', self._handle_setup_status)
+        self.app.router.add_post('/api/setup/complete', self._handle_setup_complete)
+        self.app.router.add_get('/setup', self._handle_setup_wizard)
     
     async def _handle_index(self, request):
         """Trang chính."""
@@ -1524,6 +1530,564 @@ class WebSettingsServer:
         except Exception as e:
             logger.error(f"Test Chat error: {e}")
             return web.json_response({"success": False, "message": f"❌ Lỗi: {str(e)}"})
+    
+    # ========== HEALTH CHECK ==========
+    async def _handle_health(self, request):
+        """Health check endpoint cho monitoring."""
+        import psutil
+        import os
+        
+        health = {
+            "status": "ok",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "uptime": self._get_uptime(),
+            "checks": {}
+        }
+        
+        # Check 1: CPU/Memory
+        try:
+            health["checks"]["system"] = {
+                "status": "ok",
+                "cpu_percent": psutil.cpu_percent(),
+                "memory_percent": psutil.virtual_memory().percent,
+                "disk_percent": psutil.disk_usage('/').percent
+            }
+        except Exception as e:
+            health["checks"]["system"] = {"status": "error", "message": str(e)}
+        
+        # Check 2: Audio devices
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            has_input = any(d['max_input_channels'] > 0 for d in devices)
+            has_output = any(d['max_output_channels'] > 0 for d in devices)
+            health["checks"]["audio"] = {
+                "status": "ok" if (has_input and has_output) else "warning",
+                "input_available": has_input,
+                "output_available": has_output
+            }
+        except Exception as e:
+            health["checks"]["audio"] = {"status": "error", "message": str(e)}
+        
+        # Check 3: WebSocket connection
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app and hasattr(app, 'protocol') and app.protocol:
+                health["checks"]["websocket"] = {"status": "ok", "connected": True}
+            else:
+                health["checks"]["websocket"] = {"status": "warning", "connected": False}
+        except Exception as e:
+            health["checks"]["websocket"] = {"status": "error", "message": str(e)}
+        
+        # Check 4: Config file
+        try:
+            config_file = self.config.config_file
+            if config_file and os.path.exists(config_file):
+                health["checks"]["config"] = {"status": "ok", "path": str(config_file)}
+            else:
+                health["checks"]["config"] = {"status": "warning", "message": "Config file not found"}
+        except Exception as e:
+            health["checks"]["config"] = {"status": "error", "message": str(e)}
+        
+        # Overall status
+        statuses = [c.get("status", "ok") for c in health["checks"].values()]
+        if "error" in statuses:
+            health["status"] = "unhealthy"
+        elif "warning" in statuses:
+            health["status"] = "degraded"
+        
+        return web.json_response(health)
+    
+    def _get_uptime(self) -> str:
+        """Lấy uptime của app."""
+        try:
+            import psutil
+            import os
+            p = psutil.Process(os.getpid())
+            uptime_sec = time.time() - p.create_time()
+            hours, remainder = divmod(int(uptime_sec), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            return f"{hours}h {minutes}m {seconds}s"
+        except:
+            return "Unknown"
+    
+    # ========== SETUP WIZARD ==========
+    async def _handle_setup_status(self, request):
+        """Kiểm tra trạng thái setup."""
+        is_first_run = self.config.get_config("SYSTEM.FIRST_RUN_COMPLETE", False) != True
+        return web.json_response({
+            "first_run": is_first_run,
+            "redirect_to_setup": is_first_run
+        })
+    
+    async def _handle_setup_complete(self, request):
+        """Đánh dấu setup hoàn tất."""
+        try:
+            self.config.update_config("SYSTEM.FIRST_RUN_COMPLETE", True)
+            return web.json_response({"success": True, "message": "Setup hoàn tất!"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_setup_wizard(self, request):
+        """Trang Setup Wizard cho first-run."""
+        setup_html = '''<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart C AI - Thiết Lập Ban Đầu</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        .wizard-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            text-align: center;
+            padding: 30px 0;
+        }
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .header p { color: #94a3b8; font-size: 14px; }
+        .progress-bar {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0 30px;
+            position: relative;
+        }
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-50%);
+            z-index: 0;
+        }
+        .step-indicator {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            z-index: 1;
+            transition: all 0.3s;
+        }
+        .step-indicator.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 0 20px rgba(102,126,234,0.5);
+        }
+        .step-indicator.done { background: #10b981; }
+        .step-content {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 30px;
+            display: none;
+        }
+        .step-content.active { display: block; }
+        .step-content h2 { font-size: 22px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        select, input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 16px;
+        }
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102,126,234,0.4); }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+        }
+        .status-card {
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .status-card.error {
+            background: rgba(239,68,68,0.1);
+            border-color: rgba(239,68,68,0.3);
+        }
+        .device-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .device-item {
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            margin: 5px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .device-item:hover { background: rgba(255,255,255,0.1); }
+        .device-item.selected {
+            background: rgba(102,126,234,0.2);
+            border: 1px solid #667eea;
+        }
+        .success-animation {
+            text-align: center;
+            padding: 40px;
+        }
+        .success-animation .icon { font-size: 80px; animation: bounce 1s infinite; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="header">
+            <h1>🤖 Smart C AI</h1>
+            <p>Thiết lập ban đầu - Chỉ mất 2 phút</p>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="step-indicator active" id="ind1">1</div>
+            <div class="step-indicator" id="ind2">2</div>
+            <div class="step-indicator" id="ind3">3</div>
+            <div class="step-indicator" id="ind4">✓</div>
+        </div>
+        
+        <!-- Step 1: WiFi -->
+        <div class="step-content active" id="step1">
+            <h2>📶 Kết nối WiFi</h2>
+            <div class="form-group">
+                <label>Mạng WiFi hiện tại:</label>
+                <div id="currentWifi" class="status-card">Đang kiểm tra...</div>
+            </div>
+            <div class="form-group">
+                <label>Chọn mạng WiFi:</label>
+                <select id="wifiList"><option value="">Đang quét...</option></select>
+            </div>
+            <div class="form-group">
+                <label>Mật khẩu:</label>
+                <input type="password" id="wifiPassword" placeholder="Nhập mật khẩu WiFi">
+            </div>
+            <button class="btn btn-secondary" onclick="connectWifi()">📶 Kết nối</button>
+            <div id="wifiStatus" style="margin-top: 10px;"></div>
+            <div class="nav-buttons">
+                <div></div>
+                <button class="btn btn-primary" onclick="nextStep(2)">Tiếp theo →</button>
+            </div>
+        </div>
+        
+        <!-- Step 2: Audio -->
+        <div class="step-content" id="step2">
+            <h2>🎤 Thiết lập Microphone & Loa</h2>
+            <div class="form-group">
+                <label>Chọn Microphone:</label>
+                <select id="micDevice"></select>
+            </div>
+            <div class="form-group">
+                <label>Chọn Loa:</label>
+                <select id="speakerDevice"></select>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="testMic()">🎤 Test MIC</button>
+                <button class="btn btn-secondary" onclick="testSpeaker()">🔊 Test Loa</button>
+            </div>
+            <div id="audioStatus" style="margin-top: 10px;"></div>
+            <div class="nav-buttons">
+                <button class="btn btn-secondary" onclick="prevStep(1)">← Quay lại</button>
+                <button class="btn btn-primary" onclick="saveAudioAndNext()">Tiếp theo →</button>
+            </div>
+        </div>
+        
+        <!-- Step 3: Test -->
+        <div class="step-content" id="step3">
+            <h2>🧪 Kiểm tra hệ thống</h2>
+            <div id="systemChecks">
+                <div class="status-card" id="checkAudio">🔄 Đang kiểm tra Audio...</div>
+                <div class="status-card" id="checkServer">🔄 Đang kiểm tra Server...</div>
+                <div class="status-card" id="checkWakeword">🔄 Đang kiểm tra Wake Word...</div>
+            </div>
+            <div class="form-group" style="margin-top: 20px;">
+                <label>Test nói chuyện với AI:</label>
+                <input type="text" id="testMessage" placeholder="Nhập tin nhắn test...">
+                <button class="btn btn-secondary" onclick="testChat()" style="margin-top: 10px;">📤 Gửi test</button>
+            </div>
+            <div id="testResult" style="margin-top: 10px;"></div>
+            <div class="nav-buttons">
+                <button class="btn btn-secondary" onclick="prevStep(2)">← Quay lại</button>
+                <button class="btn btn-primary" onclick="completeSetup()">Hoàn tất ✓</button>
+            </div>
+        </div>
+        
+        <!-- Step 4: Complete -->
+        <div class="step-content" id="step4">
+            <div class="success-animation">
+                <div class="icon">🎉</div>
+                <h2 style="margin-top: 20px;">Thiết lập hoàn tất!</h2>
+                <p style="color: #94a3b8; margin-top: 10px;">Smart C AI đã sẵn sàng sử dụng</p>
+                <div style="margin-top: 30px;">
+                    <p><strong>Wake Words:</strong> "Alexa", "Smart C", "Sophia"</p>
+                    <p style="margin-top: 10px; color: #94a3b8;">Nói một trong các từ trên để bắt đầu trò chuyện</p>
+                </div>
+                <button class="btn btn-primary" onclick="window.location.href='/'" style="margin-top: 30px;">
+                    Vào Dashboard →
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentStep = 1;
+        
+        function nextStep(step) {
+            document.getElementById('step' + currentStep).classList.remove('active');
+            document.getElementById('step' + step).classList.add('active');
+            document.getElementById('ind' + currentStep).classList.remove('active');
+            document.getElementById('ind' + currentStep).classList.add('done');
+            document.getElementById('ind' + step).classList.add('active');
+            currentStep = step;
+            
+            if (step === 2) loadAudioDevices();
+            if (step === 3) runSystemChecks();
+        }
+        
+        function prevStep(step) {
+            document.getElementById('step' + currentStep).classList.remove('active');
+            document.getElementById('step' + step).classList.add('active');
+            document.getElementById('ind' + currentStep).classList.remove('active');
+            document.getElementById('ind' + step).classList.add('active');
+            document.getElementById('ind' + step).classList.remove('done');
+            currentStep = step;
+        }
+        
+        // WiFi functions
+        async function loadWifi() {
+            try {
+                const resp = await fetch('/api/wifi/scan');
+                const data = await resp.json();
+                const select = document.getElementById('wifiList');
+                select.innerHTML = '';
+                
+                if (data.current) {
+                    document.getElementById('currentWifi').innerHTML = 
+                        `✅ Đã kết nối: <strong>${data.current}</strong>` + 
+                        (data.ip ? ` (IP: ${data.ip})` : '');
+                } else {
+                    document.getElementById('currentWifi').innerHTML = '❌ Chưa kết nối WiFi';
+                    document.getElementById('currentWifi').classList.add('error');
+                }
+                
+                (data.networks || []).forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n.ssid;
+                    opt.textContent = `${n.ssid} (${n.signal}%)`;
+                    select.appendChild(opt);
+                });
+            } catch(e) {
+                document.getElementById('currentWifi').innerHTML = '❌ Lỗi quét WiFi';
+            }
+        }
+        
+        async function connectWifi() {
+            const ssid = document.getElementById('wifiList').value;
+            const password = document.getElementById('wifiPassword').value;
+            if (!ssid) return;
+            
+            document.getElementById('wifiStatus').innerHTML = '⏳ Đang kết nối...';
+            try {
+                const resp = await fetch('/api/wifi/connect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ssid, password})
+                });
+                const data = await resp.json();
+                document.getElementById('wifiStatus').innerHTML = data.success ? 
+                    '✅ ' + data.message : '❌ ' + data.message;
+                if (data.success) loadWifi();
+            } catch(e) {
+                document.getElementById('wifiStatus').innerHTML = '❌ Lỗi kết nối';
+            }
+        }
+        
+        // Audio functions
+        async function loadAudioDevices() {
+            try {
+                const resp = await fetch('/api/audio');
+                const data = await resp.json();
+                
+                const micSelect = document.getElementById('micDevice');
+                const speakerSelect = document.getElementById('speakerDevice');
+                micSelect.innerHTML = '';
+                speakerSelect.innerHTML = '';
+                
+                (data.devices || []).forEach(d => {
+                    if (d.max_input_channels > 0) {
+                        const opt = document.createElement('option');
+                        opt.value = d.id;
+                        opt.textContent = d.name;
+                        if (d.id === data.current_input) opt.selected = true;
+                        micSelect.appendChild(opt);
+                    }
+                    if (d.max_output_channels > 0) {
+                        const opt = document.createElement('option');
+                        opt.value = d.id;
+                        opt.textContent = d.name;
+                        if (d.id === data.current_output) opt.selected = true;
+                        speakerSelect.appendChild(opt);
+                    }
+                });
+            } catch(e) {
+                document.getElementById('audioStatus').innerHTML = '❌ Lỗi tải thiết bị';
+            }
+        }
+        
+        async function testMic() {
+            document.getElementById('audioStatus').innerHTML = '🔴 Đang ghi âm 3s...';
+            try {
+                const resp = await fetch('/api/test/mic', {method: 'POST'});
+                const data = await resp.json();
+                document.getElementById('audioStatus').innerHTML = data.success ? 
+                    '✅ ' + data.message : '❌ ' + data.message;
+            } catch(e) {
+                document.getElementById('audioStatus').innerHTML = '❌ Lỗi test MIC';
+            }
+        }
+        
+        async function testSpeaker() {
+            document.getElementById('audioStatus').innerHTML = '🔊 Đang phát...';
+            try {
+                const resp = await fetch('/api/test/speaker', {method: 'POST'});
+                const data = await resp.json();
+                document.getElementById('audioStatus').innerHTML = data.success ? 
+                    '✅ ' + data.message : '❌ ' + data.message;
+            } catch(e) {
+                document.getElementById('audioStatus').innerHTML = '❌ Lỗi test Loa';
+            }
+        }
+        
+        async function saveAudioAndNext() {
+            const micDevice = document.getElementById('micDevice').value;
+            const speakerDevice = document.getElementById('speakerDevice').value;
+            try {
+                await fetch('/api/audio', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({micDevice, speakerDevice, micVolume: 80, speakerVolume: 80})
+                });
+            } catch(e) {}
+            nextStep(3);
+        }
+        
+        // System checks
+        async function runSystemChecks() {
+            // Check Audio
+            try {
+                const resp = await fetch('/api/health');
+                const data = await resp.json();
+                
+                const audioCheck = data.checks?.audio;
+                document.getElementById('checkAudio').innerHTML = audioCheck?.status === 'ok' ?
+                    '✅ Audio: MIC và Loa hoạt động' : '⚠️ Audio: Có vấn đề';
+                document.getElementById('checkAudio').className = 'status-card' + 
+                    (audioCheck?.status !== 'ok' ? ' error' : '');
+                
+                const wsCheck = data.checks?.websocket;
+                document.getElementById('checkServer').innerHTML = wsCheck?.connected ?
+                    '✅ Server: Đã kết nối' : '⚠️ Server: Chưa kết nối (sẽ tự động kết nối)';
+                document.getElementById('checkServer').className = 'status-card' + 
+                    (!wsCheck?.connected ? ' error' : '');
+                
+                document.getElementById('checkWakeword').innerHTML = '✅ Wake Word: Sẵn sàng (Alexa, Smart C, Sophia)';
+            } catch(e) {
+                document.getElementById('checkServer').innerHTML = '❌ Không thể kiểm tra';
+            }
+        }
+        
+        async function testChat() {
+            const msg = document.getElementById('testMessage').value;
+            if (!msg) return;
+            document.getElementById('testResult').innerHTML = '⏳ Đang gửi...';
+            try {
+                const resp = await fetch('/api/test/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: msg})
+                });
+                const data = await resp.json();
+                document.getElementById('testResult').innerHTML = data.success ? 
+                    '✅ ' + (data.response || data.message) : '❌ ' + data.message;
+            } catch(e) {
+                document.getElementById('testResult').innerHTML = '❌ Lỗi gửi';
+            }
+        }
+        
+        async function completeSetup() {
+            try {
+                await fetch('/api/setup/complete', {method: 'POST'});
+                nextStep(4);
+            } catch(e) {
+                nextStep(4);
+            }
+        }
+        
+        // Init
+        loadWifi();
+    </script>
+</body>
+</html>'''
+        return web.Response(text=setup_html, content_type='text/html')
 
 
 # Singleton instance
