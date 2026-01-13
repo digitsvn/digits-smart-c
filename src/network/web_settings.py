@@ -1294,23 +1294,39 @@ class WebSettingsServer:
             app = Application._instance
             
             if not app:
-                return web.json_response({"success": False, "message": "App chưa khởi động"})
+                return web.json_response({"success": False, "message": "App chưa khởi động. Vui lòng restart app thủ công."})
             
-            # Lấy audio plugin
-            audio_plugin = app.plugins.get_plugin("audio")
-            if not audio_plugin:
-                return web.json_response({"success": False, "message": "Audio plugin không tìm thấy"})
+            # Thử lấy codec từ nhiều nguồn
+            codec = None
             
-            codec = getattr(audio_plugin, "codec", None)
+            # Cách 1: Từ app.audio_codec (được set trong audio plugin)
+            codec = getattr(app, "audio_codec", None)
+            
+            # Cách 2: Từ audio plugin
+            if not codec and hasattr(app, "plugins"):
+                try:
+                    audio_plugin = app.plugins.get_plugin("audio")
+                    if audio_plugin:
+                        codec = getattr(audio_plugin, "codec", None)
+                except:
+                    pass
+            
             if not codec:
-                return web.json_response({"success": False, "message": "Audio codec chưa khởi tạo"})
+                # Không có codec - yêu cầu restart app
+                return web.json_response({
+                    "success": False, 
+                    "message": "Audio chưa khởi tạo. Config đã lưu - vui lòng restart app để áp dụng."
+                })
             
             # Stop current streams (nếu có method)
             logger.info("Stopping audio streams for restart...")
-            if hasattr(codec, "stop_streams"):
-                await codec.stop_streams()
-            elif hasattr(codec, "close"):
-                await codec.close()
+            try:
+                if hasattr(codec, "stop_streams"):
+                    await codec.stop_streams()
+                elif hasattr(codec, "close"):
+                    await codec.close()
+            except Exception as e:
+                logger.warning(f"Stop streams warning: {e}")
             
             # Reload config
             self.config.reload_config()
