@@ -371,19 +371,16 @@ class Application:
                                 await asyncio.sleep(0.5)
                                 logger.info("🎤 Restart listening sau TTS stop")
                                 
-                                # REALTIME và đã ở LISTENING thì không cần gửi lại
-                                if not (
-                                    self.listening_mode == ListeningMode.REALTIME
-                                    and self.device_state == DeviceState.LISTENING
-                                ):
-                                    await self.protocol.send_start_listening(
-                                        self.listening_mode
-                                    )
+                                # Luôn gửi start_listening để đảm bảo server biết
+                                await self.protocol.send_start_listening(self.listening_mode)
+                                logger.info(f"🎤 Sent start_listening (mode={self.listening_mode})")
+                                
                             except Exception as e:
                                 logger.error(f"Restart listening failed: {e}")
-                            self.keep_listening and await self.set_device_state(
-                                DeviceState.LISTENING
-                            )
+                            
+                            # Set state to LISTENING
+                            await self.set_device_state(DeviceState.LISTENING)
+                            logger.info("🎤 State set to LISTENING")
 
                         self.spawn(_restart_listening(), "state:tts_stop_restart")
                     else:
