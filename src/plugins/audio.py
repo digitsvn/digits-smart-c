@@ -59,7 +59,12 @@ class AudioPlugin(Plugin):
                 pass
 
     async def on_incoming_json(self, message: Any) -> None:
-        # Ví dụ: không xử lý
+        # Xử lý TTS stop để reset echo period
+        if isinstance(message, dict) and message.get("type") == "tts":
+            state = message.get("state")
+            if state == "stop" and self.codec:
+                # Đánh dấu playback kết thúc để reset echo period
+                self.codec.mark_playback_ended()
         await asyncio.sleep(0)
 
     async def on_incoming_audio(self, data: bytes) -> None:

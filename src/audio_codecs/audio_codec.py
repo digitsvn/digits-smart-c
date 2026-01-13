@@ -1303,6 +1303,16 @@ class AudioCodec:
         self._playback_end_time = 0
         logger.info("Playing state reset")
 
+    def mark_playback_ended(self):
+        """
+        Đánh dấu TTS playback đã kết thúc.
+        Gọi khi nhận được tts stop message từ server.
+        Điều này sẽ reset echo period sau _echo_guard_duration.
+        """
+        self._is_playing = False
+        self._playback_end_time = time.time()
+        logger.info("🔊 Playback ended, echo guard active for 0.5s")
+
     async def start_streams(self):
         """
         Bắt đầu luồng âm thanh.
