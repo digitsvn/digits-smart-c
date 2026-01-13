@@ -192,11 +192,13 @@ def setup_audio_environment():
     logger.info("=== Audio Setup: Starting ===")
     
     # Step 0: Check and install dependencies
-    try:
-        from src.utils.dependency_checker import check_all_dependencies
-        check_all_dependencies()
-    except Exception as e:
-        logger.warning(f"Dependency check failed: {e}")
+    # NOTE: Tắt dependency check trong startup vì chạy quá lâu
+    # Dependency nên được cài riêng bằng install script
+    # try:
+    #     from src.utils.dependency_checker import check_all_dependencies
+    #     check_all_dependencies()
+    # except Exception as e:
+    #     logger.warning(f"Dependency check failed: {e}")
     
     # Step 1: Kill stale audio processes để giải phóng HDMI
     kill_audio_processes()
