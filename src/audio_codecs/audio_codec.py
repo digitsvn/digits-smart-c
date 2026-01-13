@@ -548,11 +548,9 @@ class AudioCodec:
             return
 
         try:
-            # Echo Suppression: Bỏ qua input khi đang phát hoặc trong guard time
+            # Echo Suppression: Kiểm tra xem có đang phát hay không
             current_time = time.time()
-            if self._is_playing or (current_time - self._playback_end_time) < self._echo_guard_duration:
-                # Trả về silence thay vì thu âm thực
-                return
+            is_echo_period = self._is_playing or (current_time - self._playback_end_time) < self._echo_guard_duration
             
             audio_data = indata.copy()
             
@@ -582,7 +580,7 @@ class AudioCodec:
                 self._last_log_time = now
                 if len(audio_data) > 0:
                     max_val = np.max(np.abs(audio_data))
-                    logger.info(f"Audio Input Check - Max Amplitude: {max_val} (Type: {audio_data.dtype})")
+                    logger.info(f"Audio Input Check - Max Amplitude: {max_val} (Echo period: {is_echo_period})")
                 else:
                     logger.info("Audio Input Check - No data")
 
@@ -597,22 +595,23 @@ class AudioCodec:
                 except Exception as e:
                     logger.warning(f"Xử lý AEC thất bại, sử dụng âm thanh gốc: {e}")
 
-            # Mã hóa thời gian thực và gửi (không qua hàng đợi, giảm độ trễ)
-            if (
-                self._encoded_audio_callback
-                and len(audio_data) == AudioConfig.INPUT_FRAME_SIZE
-            ):
-                try:
-                    pcm_data = audio_data.astype(np.int16).tobytes()
-                    encoded_data = self.opus_encoder.encode(
-                        pcm_data, AudioConfig.INPUT_FRAME_SIZE
-                    )
-                    if encoded_data:
-                        self._encoded_audio_callback(encoded_data)
-                except Exception as e:
-                    logger.warning(f"Mã hóa ghi âm thời gian thực thất bại: {e}")
+            # Mã hóa thời gian thực và gửi - CHỈ KHI KHÔNG TRONG ECHO PERIOD
+            if not is_echo_period:
+                if (
+                    self._encoded_audio_callback
+                    and len(audio_data) == AudioConfig.INPUT_FRAME_SIZE
+                ):
+                    try:
+                        pcm_data = audio_data.astype(np.int16).tobytes()
+                        encoded_data = self.opus_encoder.encode(
+                            pcm_data, AudioConfig.INPUT_FRAME_SIZE
+                        )
+                        if encoded_data:
+                            self._encoded_audio_callback(encoded_data)
+                    except Exception as e:
+                        logger.warning(f"Mã hóa ghi âm thời gian thực thất bại: {e}")
 
-            # Đồng thời cung cấp cho phát hiện từ đánh thức (qua hàng đợi)
+            # LUÔN cung cấp cho phát hiện từ đánh thức (wake word cần chạy liên tục!)
             self._put_audio_data_safe(self._wakeword_buffer, audio_data.copy())
 
         except Exception as e:
