@@ -324,29 +324,43 @@ class AudioCodec:
     def _start_hdmi_aplay(self):
         """
         Khởi động audio subprocess cho HDMI output.
-        - Nếu có PulseAudio: dùng paplay (chia sẻ output với video)
-        - Nếu không: dùng aplay với nhiều device options
+        Thử nhiều device format để đảm bảo hoạt động.
         """
         
         hdmi_card = self._hdmi_device_name or "vc4hdmi0"
         
-        # Dùng ALSA aplay trực tiếp với plughw
-        # Video đã bị mute bằng GST_AUDIO_SINK=fakesink nên HDMI free
-        cmd = [
-            "aplay",
-            "-D", f"plughw:CARD={hdmi_card}",
-            "-f", "S16_LE",
-            "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
-            "-c", "1",
-            "-q",
-            "-"
-        ]
+        # Thử tìm HDMI card number từ aplay -l
+        hdmi_card_num = self._find_hdmi_card_number()
         
-        # Retry loop - đợi nếu device chưa sẵn sàng
-        max_retries = 3
-        for attempt in range(max_retries):
+        # Danh sách device formats để thử
+        device_options = []
+        
+        # Ưu tiên card number nếu tìm thấy
+        if hdmi_card_num is not None:
+            device_options.extend([
+                f"plughw:{hdmi_card_num},0",
+                f"hw:{hdmi_card_num},0",
+            ])
+        
+        # Thử với card name
+        device_options.extend([
+            f"plughw:CARD={hdmi_card}",
+            "default",
+        ])
+        
+        for device in device_options:
+            cmd = [
+                "aplay",
+                "-D", device,
+                "-f", "S16_LE",
+                "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
+                "-c", "1",
+                "-q",
+                "-"
+            ]
+            
             try:
-                logger.info(f"Starting HDMI aplay (attempt {attempt+1}/{max_retries}): plughw:CARD={hdmi_card}")
+                logger.info(f"Trying HDMI device: {device}")
                 self._hdmi_aplay_process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
@@ -354,16 +368,11 @@ class AudioCodec:
                     stderr=subprocess.PIPE
                 )
                 
-                time.sleep(0.3)
+                time.sleep(0.5)
                 if self._hdmi_aplay_process.poll() is not None:
                     stderr_output = self._hdmi_aplay_process.stderr.read().decode('utf-8', errors='ignore')
-                    if "busy" in stderr_output.lower():
-                        logger.warning(f"HDMI device busy, waiting...")
-                        time.sleep(2)
-                        continue
-                    else:
-                        logger.warning(f"aplay failed: {stderr_output[:100]}")
-                        continue
+                    logger.warning(f"Device {device} failed: {stderr_output[:100]}")
+                    continue
                 
                 # Warmup
                 try:
@@ -375,16 +384,38 @@ class AudioCodec:
                     continue
                 
                 self._hdmi_use_aplay = True
-                logger.info(f"🔊 HDMI aplay started successfully!")
+                logger.info(f"🔊 HDMI aplay started with device: {device}")
                 return
                 
             except Exception as e:
-                logger.warning(f"aplay attempt {attempt+1} failed: {e}")
-                time.sleep(1)
+                logger.warning(f"Device {device} exception: {e}")
+                continue
         
-        # Hết retry
-        logger.error(f"Failed to start HDMI aplay after {max_retries} attempts")
+        # Hết options
+        logger.error(f"Failed to start HDMI aplay with any device")
         self._hdmi_use_aplay = False
+    
+    def _find_hdmi_card_number(self) -> int | None:
+        """Tìm HDMI card number từ aplay -l."""
+        try:
+            result = subprocess.run(
+                ["aplay", "-l"],
+                capture_output=True, text=True, timeout=5
+            )
+            
+            for line in result.stdout.split('\n'):
+                if 'hdmi' in line.lower() and 'card' in line.lower():
+                    # Format: "card 1: vc4hdmi0 [vc4-hdmi-0], device 0:..."
+                    import re
+                    match = re.search(r'card\s+(\d+):', line.lower())
+                    if match:
+                        card_num = int(match.group(1))
+                        logger.info(f"Found HDMI card number: {card_num}")
+                        return card_num
+        except Exception as e:
+            logger.warning(f"Failed to find HDMI card number: {e}")
+        
+        return None
     
     def _stop_hdmi_aplay(self):
         """Dừng HDMI aplay subprocess."""
