@@ -58,6 +58,7 @@ Rectangle {
         }
         
         // Video cho MP4 (có thể giật khi loop)
+        // KHÔNG dùng audio - để dành HDMI cho AI
         Video {
             id: videoPlayer
             anchors.fill: parent
@@ -66,7 +67,10 @@ Rectangle {
             fillMode: VideoOutput.Stretch
             autoPlay: true
             loops: MediaPlayer.Infinite
+            
+            // Tắt hoàn toàn audio - để HDMI cho AI output
             muted: true
+            volume: 0
             
             onSourceChanged: {
                 if (source && source.length > 0) {
