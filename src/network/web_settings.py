@@ -1829,112 +1829,137 @@ class WebSettingsServer:
     
     # ========== TEST HANDLERS ==========
     async def _handle_test_mic(self, request):
-        """Test microphone - ghi âm và phát lại."""
+        """Test microphone - ghi âm và phát lại dùng arecord/aplay."""
+        import subprocess
+        import tempfile
+        import os
+        import wave
+        import numpy as np
+        
         try:
-            import sounddevice as sd
-            import numpy as np
-            
             # Lấy thông tin device hiện tại
             audio_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
-            input_device_id = self.config.get_config("AUDIO.INPUT_DEVICE_INDEX")
-            output_device_id = self.config.get_config("AUDIO.OUTPUT_DEVICE_INDEX")
             i2s_enabled = audio_config.get("i2s_enabled", False)
             i2s_stereo = audio_config.get("i2s_stereo", False)
             hdmi_audio = audio_config.get("hdmi_audio", False)
+            input_device_name = audio_config.get("input_device_name", "")
+            output_device_name = audio_config.get("output_device_name", "")
             
-            # Tìm device phù hợp
-            devices = sd.query_devices()
-            device_name = "Default"
-            channels = 1
-            input_device = input_device_id
-            output_device = output_device_id
-            
-            # Nếu I2S enabled, tìm I2S device
+            # Xác định ALSA card cho input
+            # Ưu tiên googlevoicehat nếu I2S enabled
+            arecord_device = "default"
             if i2s_enabled:
-                for i, d in enumerate(devices):
-                    if d['max_input_channels'] > 0:
-                        name_lower = d['name'].lower()
-                        # Tìm I2S devices: googlevoicehat, simple-card, i2s, inmp441
-                        if any(x in name_lower for x in ['googlevoicehat', 'simple-card', 'i2s', 'inmp441', 'snd_rpi']):
-                            input_device = i
-                            device_name = d['name']
-                            if i2s_stereo and d['max_input_channels'] >= 2:
-                                channels = 2
-                            logger.info(f"Found I2S device: {device_name} (index: {i})")
-                            break
-            elif input_device_id is not None and 0 <= input_device_id < len(devices):
-                device_name = devices[input_device_id]['name']
-                if i2s_stereo and devices[input_device_id]['max_input_channels'] >= 2:
-                    channels = 2
+                # Thử tìm googlevoicehat card
+                result = subprocess.run(
+                    ["arecord", "-l"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if "googlevoicehat" in result.stdout.lower():
+                    arecord_device = "plughw:CARD=googlevoicehat"
+                elif "simple" in result.stdout.lower():
+                    arecord_device = "plughw:CARD=simple"
             
-            # Tìm output device cho playback
-            output_name = "Default"
-            if hdmi_audio:
-                for i, d in enumerate(devices):
-                    if d['max_output_channels'] > 0 and ('hdmi' in d['name'].lower() or 'vc4' in d['name'].lower()):
-                        output_device = i
-                        output_name = d['name']
-                        break
-            elif output_device_id is not None and 0 <= output_device_id < len(devices):
-                output_name = devices[output_device_id]['name']
-            
-            logger.info(f"Test MIC: Recording 3s from '{device_name}' (channels: {channels}, I2S: {i2s_enabled})")
-            logger.info(f"Test MIC: Will playback to '{output_name}' (HDMI: {hdmi_audio})")
-            
-            # Ghi âm 3 giây
+            channels = 2 if i2s_stereo else 1
             sample_rate = 16000
             duration = 3
             
+            logger.info(f"Test MIC: Recording {duration}s from '{arecord_device}' (ch={channels}, I2S={i2s_enabled})")
+            
+            # Tạo temp file
+            temp_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
+            
+            # arecord command
+            arecord_cmd = [
+                "arecord",
+                "-D", arecord_device,
+                "-f", "S16_LE",
+                "-r", str(sample_rate),
+                "-c", str(channels),
+                "-d", str(duration),
+                temp_wav
+            ]
+            
             try:
-                recording = sd.rec(
-                    int(duration * sample_rate), 
-                    samplerate=sample_rate, 
-                    channels=channels, 
-                    dtype='int16',
-                    device=input_device
+                result = subprocess.run(
+                    arecord_cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=duration + 3
                 )
-                sd.wait()
-            except Exception as rec_err:
-                logger.error(f"Recording error: {rec_err}")
+                
+                if result.returncode != 0:
+                    logger.error(f"arecord error: {result.stderr}")
+                    return web.json_response({
+                        "success": False,
+                        "message": f"❌ arecord failed: {result.stderr[:100]}"
+                    })
+                    
+            except subprocess.TimeoutExpired:
                 return web.json_response({
-                    "success": False, 
-                    "message": f"❌ Không thể ghi âm từ '{device_name}': {str(rec_err)}"
+                    "success": False,
+                    "message": "❌ Recording timeout"
+                })
+            except Exception as e:
+                return web.json_response({
+                    "success": False,
+                    "message": f"❌ Recording error: {str(e)}"
                 })
             
-            # Kiểm tra có âm thanh không
-            if channels == 2:
-                # Stereo: hiện thông tin từng channel
-                max_left = np.max(np.abs(recording[:, 0]))
-                max_right = np.max(np.abs(recording[:, 1]))
-                max_amplitude = max(max_left, max_right)
-                avg_amplitude = np.mean(np.abs(recording))
-                channel_info = f"L:{max_left}, R:{max_right}"
-            else:
-                max_amplitude = np.max(np.abs(recording))
-                avg_amplitude = np.mean(np.abs(recording))
-                channel_info = "Mono"
+            # Đọc WAV file và phân tích
+            try:
+                with wave.open(temp_wav, 'rb') as wf:
+                    frames = wf.readframes(wf.getnframes())
+                    audio_data = np.frombuffer(frames, dtype=np.int16)
+                    
+                    if channels == 2 and len(audio_data) > 0:
+                        audio_data = audio_data.reshape(-1, 2)
+                        max_left = np.max(np.abs(audio_data[:, 0]))
+                        max_right = np.max(np.abs(audio_data[:, 1]))
+                        max_amplitude = max(max_left, max_right)
+                        channel_info = f"L:{max_left}, R:{max_right}"
+                    else:
+                        max_amplitude = np.max(np.abs(audio_data)) if len(audio_data) > 0 else 0
+                        channel_info = "Mono"
+                        
+            except Exception as e:
+                max_amplitude = 0
+                channel_info = f"Error: {e}"
             
-            logger.info(f"Test MIC: Max amplitude: {max_amplitude}, Avg: {avg_amplitude} ({channel_info})")
+            logger.info(f"Test MIC: Max={max_amplitude}, {channel_info}")
             
-            # Phát lại qua đúng output device (HDMI hoặc Headphone)
-            logger.info(f"Test MIC: Playing back to '{output_name}'...")
-            if channels == 2:
-                playback = np.mean(recording, axis=1).astype('int16')
-            else:
-                playback = recording
-            sd.play(playback, sample_rate, device=output_device)
-            sd.wait()
+            # Phát lại qua HDMI hoặc default
+            aplay_device = "default"
+            if hdmi_audio:
+                aplay_device = "plughw:CARD=vc4hdmi0"
             
+            logger.info(f"Test MIC: Playback to '{aplay_device}'")
+            
+            try:
+                subprocess.run(
+                    ["aplay", "-D", aplay_device, temp_wav],
+                    capture_output=True,
+                    timeout=duration + 2
+                )
+            except:
+                pass
+            
+            # Cleanup
+            try:
+                os.unlink(temp_wav)
+            except:
+                pass
+            
+            # Return result
             if max_amplitude < 100:
                 return web.json_response({
-                    "success": False, 
-                    "message": f"⚠️ MIC yếu! Max: {max_amplitude} | In: {device_name} | Out: {output_name}"
+                    "success": False,
+                    "message": f"⚠️ MIC yếu! Max: {max_amplitude} | {channel_info} | Device: {arecord_device}"
                 })
             
             mic_type = "I2S INMP441" if i2s_enabled else "USB/Analog"
             return web.json_response({
-                "success": True, 
-                "message": f"✅ {mic_type} OK! Max: {max_amplitude} | {channel_info} | In: {device_name} → Out: {output_name}"
+                "success": True,
+                "message": f"✅ {mic_type} OK! Max: {max_amplitude} | {channel_info} | In: {arecord_device} → Out: {aplay_device}"
             })
             
         except Exception as e:
