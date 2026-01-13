@@ -89,31 +89,40 @@ configure_display() {
     # Backup config file
     sudo cp "$CONFIG_FILE" "${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
     
-    # Xóa các cấu hình HDMI cũ (nếu có)
+    # Xóa các cấu hình cũ (nếu có)
     sudo sed -i '/^hdmi_group=/d' "$CONFIG_FILE"
     sudo sed -i '/^hdmi_mode=/d' "$CONFIG_FILE"
     sudo sed -i '/^hdmi_force_hotplug=/d' "$CONFIG_FILE"
     sudo sed -i '/^disable_overscan=/d' "$CONFIG_FILE"
     sudo sed -i '/^hdmi_drive=/d' "$CONFIG_FILE"
+    sudo sed -i '/^gpu_mem=/d' "$CONFIG_FILE"
+    sudo sed -i '/^start_x=/d' "$CONFIG_FILE"
+    sudo sed -i '/^dtoverlay=vc4/d' "$CONFIG_FILE"
     
-    # Thêm cấu hình HDMI Full HD 1920x1080 60Hz
-    log "Cấu hình HDMI: 1920x1080 @ 60Hz"
+    # Thêm cấu hình HDMI Full HD + GPU Memory + Hardware Acceleration
+    log "Cấu hình HDMI + GPU Memory + Hardware Acceleration..."
     
     cat << 'HDMI_CONFIG' | sudo tee -a "$CONFIG_FILE" > /dev/null
 
 # ============================================
-# Smart C AI - HDMI Configuration (Full HD)
+# Smart C AI - Display & Video Configuration
 # ============================================
-# hdmi_group=2 = DMT (monitor mode)
-# hdmi_mode=82 = 1920x1080 @ 60Hz
+# HDMI: 1920x1080 @ 60Hz
 hdmi_force_hotplug=1
 hdmi_group=2
 hdmi_mode=82
 hdmi_drive=2
 disable_overscan=1
+
+# GPU Memory (256MB cho video playback mượt)
+gpu_mem=256
+
+# Hardware Video Acceleration
+dtoverlay=vc4-kms-v3d
+start_x=1
 HDMI_CONFIG
     
-    log "✓ HDMI đã cấu hình: 1920x1080 @ 60Hz"
+    log "✓ HDMI + GPU 256MB + Hardware Acceleration đã cấu hình"
 }
 
 # =============================================================================
@@ -151,16 +160,33 @@ install_desktop() {
         qml-module-qtquick-window2 \
         qml-module-qtgraphicaleffects \
         qml-module-qtmultimedia \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-plugins-bad \
-        gstreamer1.0-plugins-ugly \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-qt5 \
-        gstreamer1.0-libav \
         libqt5multimedia5-plugins \
         2>&1 | tee -a "$LOG_FILE"
     
-    log "✓ Desktop Environment đã cài đặt"
+    # === VIDEO CODECS & HARDWARE ACCELERATION ===
+    log "Cài đặt GStreamer + Video Codecs + Hardware Acceleration..."
+    sudo apt-get install -y \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-libav \
+        gstreamer1.0-tools \
+        gstreamer1.0-omx \
+        gstreamer1.0-gl \
+        gstreamer1.0-qt5 \
+        gstreamer1.0-v4l2 \
+        libgstreamer1.0-dev \
+        libgstreamer-plugins-base1.0-dev \
+        libv4l-0 \
+        v4l-utils \
+        2>&1 | tee -a "$LOG_FILE" || true
+    
+    # Thêm user vào group video/render cho hardware acceleration
+    sudo usermod -aG video $USER
+    sudo usermod -aG render $USER
+    
+    log "✓ Desktop Environment + Video Codecs đã cài đặt"
 }
 
 # =============================================================================
