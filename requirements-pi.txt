@@ -20,6 +20,7 @@ sherpa-onnx>=1.10.0
 # === Audio Processing ===
 opuslib>=3.0.1
 webrtcvad-wheels>=2.0.10
+soxr>=0.3.0
 
 # === Network & Protocol ===
 paho-mqtt>=2.0.0

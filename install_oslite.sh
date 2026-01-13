@@ -337,6 +337,11 @@ install_python_deps() {
         websockets \
         qasync \
         sherpa-onnx \
+        soxr \
+        opuslib \
+        webrtcvad-wheels \
+        psutil \
+        colorlog \
         2>&1 | tee -a "$LOG_FILE" || \
     pip3 install --user \
         sounddevice \
@@ -345,6 +350,11 @@ install_python_deps() {
         websockets \
         qasync \
         sherpa-onnx \
+        soxr \
+        opuslib \
+        webrtcvad-wheels \
+        psutil \
+        colorlog \
         2>&1 | tee -a "$LOG_FILE"
     
     log "✓ Python dependencies đã cài đặt"
