@@ -356,12 +356,17 @@ class AudioCodec:
         ])
         
         for device in device_options:
+            # Buffer lớn để tránh ngắt quãng (underrun)
+            # --buffer-size: tổng buffer (samples)
+            # --period-size: mỗi lần write (samples)
             cmd = [
                 "aplay",
                 "-D", device,
                 "-f", "S16_LE",
                 "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
                 "-c", "1",
+                "--buffer-size=8192",  # ~0.5 giây buffer @16kHz
+                "--period-size=1024",  # ~64ms mỗi chunk
                 "-q",
                 "-"
             ]
@@ -372,7 +377,8 @@ class AudioCodec:
                     cmd,
                     stdin=subprocess.PIPE,
                     stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE
+                    stderr=subprocess.PIPE,
+                    bufsize=16384  # Python buffer lớn
                 )
                 
                 time.sleep(0.5)
@@ -381,9 +387,10 @@ class AudioCodec:
                     logger.warning(f"Device {device} failed: {stderr_output[:100]}")
                     continue
                 
-                # Warmup
+                # Warmup - fill đủ buffer để tránh underrun ban đầu
                 try:
-                    silence = b'\x00' * 4800
+                    # 8192 samples = 0.5s @16kHz, đủ để fill buffer
+                    silence = b'\x00' * 16384  # 8192 samples * 2 bytes
                     self._hdmi_aplay_process.stdin.write(silence)
                     self._hdmi_aplay_process.stdin.flush()
                 except Exception as e:
