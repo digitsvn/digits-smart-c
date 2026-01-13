@@ -85,6 +85,12 @@ class AudioCodec:
         self._hdmi_aplay_process = None  # Subprocess for HDMI output via aplay
         self._hdmi_use_aplay = False  # Flag to use aplay instead of sounddevice
         
+        # 3.5mm Jack Audio output (đồng thời với HDMI)
+        self._jack_audio = False  # Enable 3.5mm jack output
+        self._jack_device_name = "Headphones"  # Default Pi headphone jack
+        self._jack_aplay_process = None  # Subprocess for 3.5mm output
+        self._jack_use_aplay = False
+        
         # Beamforming processor for dual mic
         self.beamforming = BeamformingProcessor()
         self._beamforming_enabled = False
@@ -379,20 +385,107 @@ class AudioCodec:
         self._hdmi_use_aplay = False
     
     def _stop_hdmi_aplay(self):
-        """Dừng aplay subprocess."""
+        """Dừng HDMI aplay subprocess."""
         if self._hdmi_aplay_process:
             try:
                 self._hdmi_aplay_process.stdin.close()
                 self._hdmi_aplay_process.terminate()
                 self._hdmi_aplay_process.wait(timeout=2)
             except Exception as e:
-                logger.debug(f"aplay terminate failed: {e}")
+                logger.debug(f"HDMI aplay terminate failed: {e}")
                 try:
                     self._hdmi_aplay_process.kill()
                 except Exception:
                     pass
             self._hdmi_aplay_process = None
             logger.info("HDMI aplay stopped")
+    
+    def _start_jack_aplay(self):
+        """Khởi động aplay subprocess cho 3.5mm jack output."""
+        
+        jack_card = self._jack_device_name or "Headphones"
+        
+        # Thử nhiều device format
+        device_options = [
+            f"dmix:CARD={jack_card}",
+            f"default:CARD={jack_card}",
+            f"plughw:CARD={jack_card}",
+        ]
+        
+        for device in device_options:
+            cmd = [
+                "aplay",
+                "-D", device,
+                "-f", "S16_LE",
+                "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
+                "-c", "1",
+                "-q",
+                "-"
+            ]
+            
+            try:
+                logger.info(f"Trying Jack device: {device}")
+                self._jack_aplay_process = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE
+                )
+                
+                time.sleep(0.3)
+                if self._jack_aplay_process.poll() is not None:
+                    stderr_output = self._jack_aplay_process.stderr.read().decode('utf-8', errors='ignore')
+                    logger.warning(f"Jack device {device} failed: {stderr_output[:100]}")
+                    continue
+                
+                # Warmup
+                try:
+                    silence = b'\x00' * 4800
+                    self._jack_aplay_process.stdin.write(silence)
+                    self._jack_aplay_process.stdin.flush()
+                except Exception as e:
+                    logger.warning(f"Jack aplay warmup failed: {e}")
+                    continue
+                
+                self._jack_use_aplay = True
+                logger.info(f"🎧 Jack aplay started with device: {device}")
+                return
+                
+            except Exception as e:
+                logger.warning(f"Jack device {device} exception: {e}")
+                continue
+        
+        logger.warning(f"Failed to start Jack aplay (not critical)")
+        self._jack_use_aplay = False
+    
+    def _stop_jack_aplay(self):
+        """Dừng 3.5mm jack aplay subprocess."""
+        if self._jack_aplay_process:
+            try:
+                self._jack_aplay_process.stdin.close()
+                self._jack_aplay_process.terminate()
+                self._jack_aplay_process.wait(timeout=2)
+            except Exception as e:
+                logger.debug(f"Jack aplay terminate failed: {e}")
+                try:
+                    self._jack_aplay_process.kill()
+                except Exception:
+                    pass
+            self._jack_aplay_process = None
+            logger.info("Jack aplay stopped")
+    
+    def _write_jack_audio(self, audio_data):
+        """Ghi audio data vào 3.5mm jack aplay process."""
+        if self._jack_aplay_process and self._jack_aplay_process.stdin:
+            try:
+                self._jack_aplay_process.stdin.write(audio_data.tobytes())
+                self._jack_aplay_process.stdin.flush()
+            except BrokenPipeError:
+                logger.warning("Jack aplay broken pipe, restarting...")
+                self._stop_jack_aplay()
+                self._start_jack_aplay()
+            except Exception as e:
+                logger.warning(f"Jack aplay write error: {e}")
     
     def _check_aplay_health(self) -> bool:
         """
@@ -453,6 +546,14 @@ class AudioCodec:
                     logger.info("🔊 HDMI output sẽ dùng aplay thay vì sounddevice")
                 else:
                     logger.warning("⚠️ HDMI aplay failed, sẽ thử sounddevice hoặc skip output")
+            
+            # Khởi động 3.5mm Jack aplay nếu enabled (đồng thời với HDMI)
+            if self._jack_audio:
+                self._start_jack_aplay()
+                if self._jack_use_aplay:
+                    logger.info("🎧 Jack output ready (đồng thời với HDMI)")
+                else:
+                    logger.warning("⚠️ Jack aplay failed (không ảnh hưởng HDMI)")
 
             # Lấy thông tin mặc định đầu vào/đầu ra an toàn (tránh -1)
             try:
@@ -584,6 +685,12 @@ class AudioCodec:
             self._hdmi_audio = audio_config.get("hdmi_audio", False)
             if self._hdmi_audio:
                 logger.info("HDMI Audio output enabled")
+            
+            # 3.5mm Jack audio configuration (có thể dùng đồng thời với HDMI)
+            self._jack_audio = audio_config.get("jack_audio", False)
+            if self._jack_audio:
+                self._jack_device_name = audio_config.get("jack_device_name", "Headphones")
+                logger.info(f"3.5mm Jack audio enabled: {self._jack_device_name}")
 
             # Có cấu hình rõ ràng chưa (quyết định có ghi lại hay không)
             had_cfg_input = "input_device_id" in audio_config
@@ -1255,6 +1362,19 @@ class AudioCodec:
             else:
                 # Đưa vào hàng đợi phát (sounddevice)
                 self._put_audio_data_safe(self._output_buffer, audio_array)
+            
+            # 🎧 Đồng thời ghi ra 3.5mm jack (nếu enabled)
+            if self._jack_audio:
+                if self._jack_use_aplay:
+                    if not self._jack_aplay_process:
+                        self._start_jack_aplay()
+                    if self._jack_aplay_process:
+                        self._write_jack_audio(audio_array)
+                elif not self._jack_use_aplay:
+                    # Thử start lần đầu
+                    self._start_jack_aplay()
+                    if self._jack_aplay_process:
+                        self._write_jack_audio(audio_array)
 
         except opuslib.OpusError as e:
             logger.warning(f"Giải mã Opus thất bại, bỏ qua khung này: {e}")
@@ -1405,11 +1525,15 @@ class AudioCodec:
             return
 
         self._is_closing = True
-        logger.info("开始关闭音频编解码器...")
+        logger.info("Đang đóng audio codec...")
         
         # Stop HDMI aplay nếu đang chạy
         if self._hdmi_use_aplay:
             self._stop_hdmi_aplay()
+        
+        # Stop Jack aplay nếu đang chạy
+        if self._jack_use_aplay:
+            self._stop_jack_aplay()
 
         try:
             # 1. 停止音频流（停止硬件回调，这是最关键的第一步）
