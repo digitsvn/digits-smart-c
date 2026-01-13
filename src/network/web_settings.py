@@ -1659,25 +1659,50 @@ class WebSettingsServer:
             
             # Lấy thông tin device hiện tại
             audio_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
-            input_device_id = audio_config.get("input_device_id")
+            input_device_id = self.config.get_config("AUDIO.INPUT_DEVICE_INDEX")
+            output_device_id = self.config.get_config("AUDIO.OUTPUT_DEVICE_INDEX")
             i2s_enabled = audio_config.get("i2s_enabled", False)
             i2s_stereo = audio_config.get("i2s_stereo", False)
+            hdmi_audio = audio_config.get("hdmi_audio", False)
             
-            # Lấy tên device
+            # Tìm device phù hợp
+            devices = sd.query_devices()
             device_name = "Default"
             channels = 1
-            try:
-                if input_device_id is not None:
-                    devices = sd.query_devices()
-                    if 0 <= input_device_id < len(devices):
-                        device_name = devices[input_device_id]['name']
-                        # Stereo nếu I2S stereo enabled
-                        if i2s_stereo and devices[input_device_id]['max_input_channels'] >= 2:
-                            channels = 2
-            except:
-                pass
+            input_device = input_device_id
+            output_device = output_device_id
+            
+            # Nếu I2S enabled, tìm I2S device
+            if i2s_enabled:
+                for i, d in enumerate(devices):
+                    if d['max_input_channels'] > 0:
+                        name_lower = d['name'].lower()
+                        # Tìm I2S devices: googlevoicehat, simple-card, i2s, inmp441
+                        if any(x in name_lower for x in ['googlevoicehat', 'simple-card', 'i2s', 'inmp441', 'snd_rpi']):
+                            input_device = i
+                            device_name = d['name']
+                            if i2s_stereo and d['max_input_channels'] >= 2:
+                                channels = 2
+                            logger.info(f"Found I2S device: {device_name} (index: {i})")
+                            break
+            elif input_device_id is not None and 0 <= input_device_id < len(devices):
+                device_name = devices[input_device_id]['name']
+                if i2s_stereo and devices[input_device_id]['max_input_channels'] >= 2:
+                    channels = 2
+            
+            # Tìm output device cho playback
+            output_name = "Default"
+            if hdmi_audio:
+                for i, d in enumerate(devices):
+                    if d['max_output_channels'] > 0 and ('hdmi' in d['name'].lower() or 'vc4' in d['name'].lower()):
+                        output_device = i
+                        output_name = d['name']
+                        break
+            elif output_device_id is not None and 0 <= output_device_id < len(devices):
+                output_name = devices[output_device_id]['name']
             
             logger.info(f"Test MIC: Recording 3s from '{device_name}' (channels: {channels}, I2S: {i2s_enabled})")
+            logger.info(f"Test MIC: Will playback to '{output_name}' (HDMI: {hdmi_audio})")
             
             # Ghi âm 3 giây
             sample_rate = 16000
@@ -1689,14 +1714,14 @@ class WebSettingsServer:
                     samplerate=sample_rate, 
                     channels=channels, 
                     dtype='int16',
-                    device=input_device_id
+                    device=input_device
                 )
                 sd.wait()
             except Exception as rec_err:
                 logger.error(f"Recording error: {rec_err}")
                 return web.json_response({
                     "success": False, 
-                    "message": f"❌ Không thể ghi âm: {str(rec_err)}"
+                    "message": f"❌ Không thể ghi âm từ '{device_name}': {str(rec_err)}"
                 })
             
             # Kiểm tra có âm thanh không
@@ -1714,25 +1739,25 @@ class WebSettingsServer:
             
             logger.info(f"Test MIC: Max amplitude: {max_amplitude}, Avg: {avg_amplitude} ({channel_info})")
             
-            # Phát lại (convert stereo to mono nếu cần)
-            logger.info("Test MIC: Playing back...")
+            # Phát lại qua đúng output device (HDMI hoặc Headphone)
+            logger.info(f"Test MIC: Playing back to '{output_name}'...")
             if channels == 2:
                 playback = np.mean(recording, axis=1).astype('int16')
             else:
                 playback = recording
-            sd.play(playback, sample_rate)
+            sd.play(playback, sample_rate, device=output_device)
             sd.wait()
             
             if max_amplitude < 100:
                 return web.json_response({
                     "success": False, 
-                    "message": f"⚠️ MIC yếu! Max: {max_amplitude} | Device: {device_name} | {channel_info}"
+                    "message": f"⚠️ MIC yếu! Max: {max_amplitude} | In: {device_name} | Out: {output_name}"
                 })
             
             mic_type = "I2S INMP441" if i2s_enabled else "USB/Analog"
             return web.json_response({
                 "success": True, 
-                "message": f"✅ {mic_type} OK! Max: {max_amplitude}, Avg: {int(avg_amplitude)} | {channel_info} | {device_name}"
+                "message": f"✅ {mic_type} OK! Max: {max_amplitude} | {channel_info} | In: {device_name} → Out: {output_name}"
             })
             
         except Exception as e:
@@ -1747,7 +1772,29 @@ class WebSettingsServer:
             import sounddevice as sd
             import numpy as np
             
-            logger.info("Test Speaker: Playing beep...")
+            # Lấy output device từ config
+            audio_config = self.config.get_config("AUDIO_DEVICES", {}) or {}
+            output_device_id = self.config.get_config("AUDIO.OUTPUT_DEVICE_INDEX")
+            hdmi_audio = audio_config.get("hdmi_audio", False)
+            
+            # Tìm device phù hợp
+            devices = sd.query_devices()
+            output_device = None
+            device_name = "Default"
+            
+            if hdmi_audio:
+                # Tìm HDMI device
+                for i, d in enumerate(devices):
+                    if d['max_output_channels'] > 0 and ('hdmi' in d['name'].lower() or 'vc4' in d['name'].lower()):
+                        output_device = i
+                        device_name = d['name']
+                        break
+            elif output_device_id is not None:
+                output_device = output_device_id
+                if 0 <= output_device_id < len(devices):
+                    device_name = devices[output_device_id]['name']
+            
+            logger.info(f"Test Speaker: Playing beep on '{device_name}' (HDMI: {hdmi_audio})...")
             
             # Tạo beep tone
             sample_rate = 44100
@@ -1763,7 +1810,7 @@ class WebSettingsServer:
             
             # Phát 3 beep
             for i in range(3):
-                sd.play(beep.astype(np.float32), sample_rate)
+                sd.play(beep.astype(np.float32), sample_rate, device=output_device)
                 sd.wait()
                 if i < 2:
                     import time
@@ -1771,11 +1818,13 @@ class WebSettingsServer:
             
             return web.json_response({
                 "success": True, 
-                "message": "✅ Đã phát 3 tiếng beep! Bạn có nghe thấy không?"
+                "message": f"✅ Đã phát 3 beep qua '{device_name}'! Bạn có nghe thấy không?"
             })
             
         except Exception as e:
             logger.error(f"Test Speaker error: {e}")
+            import traceback
+            traceback.print_exc()
             return web.json_response({"success": False, "message": f"❌ Lỗi: {str(e)}"})
     
     async def _handle_test_chat(self, request):
