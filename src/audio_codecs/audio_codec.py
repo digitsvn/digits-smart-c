@@ -387,10 +387,11 @@ class AudioCodec:
                     logger.warning(f"Device {device} failed: {stderr_output[:100]}")
                     continue
                 
-                # Warmup - fill đủ buffer để tránh underrun ban đầu
+                # Warmup nhỏ - chỉ để verify aplay hoạt động
+                # Không gửi silence lớn vì sẽ gây delay đầu audio
                 try:
-                    # 8192 samples = 0.5s @16kHz, đủ để fill buffer
-                    silence = b'\x00' * 16384  # 8192 samples * 2 bytes
+                    # Chỉ 320 bytes (~10ms) để test pipe
+                    silence = b'\x00' * 320
                     self._hdmi_aplay_process.stdin.write(silence)
                     self._hdmi_aplay_process.stdin.flush()
                 except Exception as e:
