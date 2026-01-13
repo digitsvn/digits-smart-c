@@ -69,12 +69,22 @@ class WakeWordPlugin(Plugin):
             if hasattr(self.app, "device_state") and hasattr(
                 self.app, "start_auto_conversation"
             ):
-                if self.app.is_speaking():
-                    logger.info("Interrupting current speech...")
+                # Check cả device_state lẫn audio playback flag
+                is_playing_audio = False
+                audio_plugin = self.app.plugins.get_plugin("audio")
+                if audio_plugin and hasattr(audio_plugin, "codec"):
+                    is_playing_audio = getattr(audio_plugin.codec, "_is_playing", False)
+                
+                if self.app.is_speaking() or is_playing_audio:
+                    logger.info(f"Interrupting current speech... (state={self.app.device_state}, playing={is_playing_audio})")
                     await self.app.abort_speaking(AbortReason.WAKE_WORD_DETECTED)
-                    audio_plugin = self.app.plugins.get_plugin("audio")
-                    if audio_plugin:
+                    if audio_plugin and hasattr(audio_plugin, "codec"):
                         await audio_plugin.codec.clear_audio_queue()
+                        # Reset playing flag
+                        audio_plugin.codec._is_playing = False
+                    # Sau khi interrupt, bắt đầu nghe lại
+                    logger.info("Starting auto conversation after interrupt...")
+                    await self.app.start_auto_conversation()
                 else:
                     logger.info("Starting auto conversation...")
                     await self.app.start_auto_conversation()
