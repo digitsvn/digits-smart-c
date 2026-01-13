@@ -17,6 +17,10 @@
 | 🖥️ **Full HD GUI** | Giao diện 1920x1080, hỗ trợ Wayland |
 | 🔐 **Device Activation** | Kích hoạt thiết bị với server |
 | ⚡ **Auto-Update** | Tự động cập nhật khi khởi động |
+| 🎙️ **I2S INMP441 Mic** | Hỗ trợ microphone I2S MEMS (stereo dual mic) |
+| 🎯 **Beamforming** | Delay-and-Sum beamforming khử nhiễu loa |
+| 📺 **HDMI Audio** | Output audio qua HDMI hoặc 3.5mm jack |
+| 🌐 **Web Dashboard** | Cấu hình từ xa qua `http://IP:8080` |
 
 ---
 
@@ -24,7 +28,7 @@
 
 ### Yêu Cầu
 - Raspberry Pi 4/5 với Pi OS Lite (64-bit)
-- USB Microphone + Speaker
+- USB Microphone hoặc I2S INMP441 + Speaker
 - Kết nối Internet
 
 ### Cài Đặt Đầy Đủ (Với Desktop GUI)
@@ -140,6 +144,32 @@ Cấu hình trong Settings hoặc `config/config.json`:
 ```
 
 > ⚠️ File `config/config.json` chứa tokens - không commit vào Git!
+
+### 🎙️ I2S INMP441 Microphone
+
+Hỗ trợ microphone I2S MEMS INMP441 với Delay-and-Sum Beamforming.
+
+**Sơ đồ kết nối:**
+```
+┌─────────────────────────────────────┐
+│  INMP441     →    Raspberry Pi     │
+├─────────────────────────────────────┤
+│  VDD         →    3.3V (Pin 1)     │
+│  GND         →    GND  (Pin 6)     │
+│  SD (Data)   →    GPIO 20 (Pin 38) │
+│  WS (LRCLK)  →    GPIO 19 (Pin 35) │
+│  SCK (BCLK)  →    GPIO 18 (Pin 12) │
+│  L/R         →    GND (Left only)  │
+└─────────────────────────────────────┘
+```
+
+**Dual mic (Stereo):** Mic 1: L/R→GND, Mic 2: L/R→3.3V
+
+**Cấu hình trong Dashboard:**
+1. Mở `http://IP:8080`
+2. ✅ Sử dụng I2S Microphone
+3. ✅ Stereo (nếu 2 mic)
+4. ✅ Beamforming (khử nhiễu loa)
 
 ---
 
