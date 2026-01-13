@@ -75,6 +75,10 @@ class AudioCodec:
         self._i2s_enabled = False
         self._i2s_stereo = False  # True nếu có 2 mic (stereo beamforming)
         
+        # HDMI Audio output
+        self._hdmi_audio = False
+        self._hdmi_device_name = None  # e.g., "vc4hdmi0"
+        
         # Beamforming processor for dual mic
         self.beamforming = BeamformingProcessor()
         self._beamforming_enabled = False
@@ -204,6 +208,7 @@ class AudioCodec:
         """
         Tìm thiết bị HDMI audio output.
         Ưu tiên các tên chứa 'hdmi', 'vc4hdmi'.
+        Cũng lưu tên device cho aplay.
         """
         hdmi_keywords = [
             "vc4hdmi", "hdmi", "vc4-hdmi"
@@ -215,9 +220,61 @@ class AudioCodec:
                 for keyword in hdmi_keywords:
                     if keyword in device_name:
                         logger.info(f"Tìm thấy HDMI device: [{i}] {d['name']}")
+                        # Lưu device name cho aplay (extract CARD name)
+                        # Device name format: "vc4hdmi0: vc4-hdmi-0, bcm2835 HDMI 1"
+                        self._hdmi_device_name = self._extract_alsa_card_name(d["name"])
                         return i
         
         return None
+    
+    def _extract_alsa_card_name(self, device_name: str) -> str:
+        """
+        Extract ALSA card name từ sounddevice device name.
+        Ví dụ: "vc4hdmi0: vc4-hdmi-0, bcm2835 HDMI 1" -> "vc4hdmi0"
+        """
+        # Thử tìm trong các HDMI card names phổ biến trên Pi
+        hdmi_cards = ["vc4hdmi0", "vc4hdmi1", "vc4hdmi", "hdmi"]
+        name_lower = device_name.lower()
+        
+        for card in hdmi_cards:
+            if card in name_lower:
+                return card
+        
+        # Fallback: lấy phần đầu trước dấu :
+        if ":" in device_name:
+            return device_name.split(":")[0].strip()
+        
+        return "vc4hdmi0"  # Default
+    
+    def _set_alsa_hdmi_default(self):
+        """
+        Set ALSA default output device to HDMI.
+        Tạo file ~/.asoundrc hoặc set environment.
+        """
+        import subprocess
+        import os
+        
+        try:
+            hdmi_card = self._hdmi_device_name or "vc4hdmi0"
+            
+            # Set SDL và ALSA environment variables
+            os.environ["SDL_AUDIODRIVER"] = "alsa"
+            os.environ["AUDIODEV"] = f"plughw:CARD={hdmi_card}"
+            
+            # Thử set volume cho HDMI
+            try:
+                subprocess.run(
+                    ["amixer", "-c", hdmi_card, "set", "PCM", "100%"],
+                    capture_output=True, timeout=5
+                )
+                logger.info(f"HDMI volume set to 100% on {hdmi_card}")
+            except:
+                pass
+            
+            logger.info(f"ALSA HDMI default set: {hdmi_card}")
+            
+        except Exception as e:
+            logger.warning(f"Set ALSA HDMI default failed: {e}")
 
     async def initialize(self):
         """
@@ -226,6 +283,10 @@ class AudioCodec:
         try:
             # Hiển thị và chọn thiết bị âm thanh (tự động chọn lần đầu và ghi vào cấu hình; không ghi đè sau đó)
             await self._select_audio_devices()
+            
+            # Set ALSA default device cho HDMI nếu enabled
+            if self._hdmi_audio and self._hdmi_device_name:
+                self._set_alsa_hdmi_default()
 
             # Lấy thông tin mặc định đầu vào/đầu ra an toàn (tránh -1)
             if self.mic_device_id is not None and self.mic_device_id >= 0:
@@ -547,6 +608,13 @@ class AudioCodec:
                 device_output_frame_size = int(
                     self.device_output_sample_rate * (AudioConfig.FRAME_DURATION / 1000)
                 )
+
+            # Log thông tin output device
+            if self.speaker_device_id is not None:
+                devices = sd.query_devices()
+                if 0 <= self.speaker_device_id < len(devices):
+                    out_dev = devices[self.speaker_device_id]
+                    logger.info(f"🔊 Output device: [{self.speaker_device_id}] {out_dev['name']} (HDMI: {getattr(self, '_hdmi_audio', False)})")
 
             self.output_stream = sd.OutputStream(
                 device=self.speaker_device_id,  # None=mặc định hệ thống; hoặc chỉ mục cố định
