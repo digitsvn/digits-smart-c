@@ -63,6 +63,9 @@ class AudioPlugin(Plugin):
         if isinstance(message, dict) and message.get("type") == "tts":
             state = message.get("state")
             if state == "stop" and self.codec:
+                # Đợi audio buffer drain trước khi mark ended
+                # aplay buffer ~0.5s + network latency
+                await asyncio.sleep(0.8)
                 # Đánh dấu playback kết thúc để reset echo period
                 self.codec.mark_playback_ended()
         await asyncio.sleep(0)
