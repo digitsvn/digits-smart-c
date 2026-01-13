@@ -390,8 +390,8 @@ class Application:
                         )
             # Chuyển tiếp cho plugin
             self.spawn(self.plugins.notify_incoming_json(json_data), "plugin:on_json")
-        except Exception:
-            logger.info("Nhận tin nhắn JSON")
+        except Exception as e:
+            logger.warning(f"Error processing JSON message: {e}")
 
     async def _on_audio_channel_opened(self):
         logger.info("Kênh giao thức đã mở")

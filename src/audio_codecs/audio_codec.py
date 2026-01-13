@@ -427,6 +427,7 @@ class AudioCodec:
                 self._start_hdmi_aplay()
             except Exception as e:
                 logger.warning(f"HDMI aplay write error: {e}")
+
     async def initialize(self):
         """
         Khởi tạo thiết bị âm thanh.
