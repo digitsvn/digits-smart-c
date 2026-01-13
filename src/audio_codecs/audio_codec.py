@@ -424,11 +424,14 @@ class AudioCodec:
                     logger.info(f"Auto-detected I2S microphone: [{i2s_device}] {devices[i2s_device]['name']}")
 
             # Auto-detect HDMI output device nếu enabled
-            if self._hdmi_audio and output_device_id is None:
+            # BẮT BUỘC dùng HDMI khi hdmi_audio=True (bỏ qua config cũ)
+            if self._hdmi_audio:
                 hdmi_device = self._find_hdmi_device(devices)
                 if hdmi_device is not None:
-                    output_device_id = hdmi_device
-                    logger.info(f"Auto-detected HDMI output: [{hdmi_device}] {devices[hdmi_device]['name']}")
+                    output_device_id = hdmi_device  # Force HDMI
+                    logger.info(f"🔊 FORCED HDMI output: [{hdmi_device}] {devices[hdmi_device]['name']}")
+                else:
+                    logger.warning("HDMI enabled but no HDMI device found!")
 
             # --- Xác thực thiết bị đầu vào trong cấu hình ---
             if input_device_id is not None:
