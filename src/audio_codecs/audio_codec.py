@@ -707,19 +707,26 @@ class AudioCodec:
                     out_dev = devices[self.speaker_device_id]
                     logger.info(f"🔊 Output device: [{self.speaker_device_id}] {out_dev['name']} (HDMI: {getattr(self, '_hdmi_audio', False)})")
 
-            self.output_stream = sd.OutputStream(
-                device=self.speaker_device_id,  # None=mặc định hệ thống; hoặc chỉ mục cố định
-                samplerate=output_sample_rate,
-                channels=AudioConfig.CHANNELS,
-                dtype=np.int16,
-                blocksize=device_output_frame_size,
-                callback=self._output_callback,
-                finished_callback=self._output_finished_callback,
-                latency="low",
-            )
+            # Khi dùng HDMI aplay, KHÔNG tạo sounddevice OutputStream
+            # vì aplay đã xử lý output rồi
+            if self._hdmi_use_aplay:
+                logger.info("🔊 Bỏ qua sounddevice OutputStream - dùng aplay cho HDMI")
+                self.output_stream = None
+            else:
+                self.output_stream = sd.OutputStream(
+                    device=self.speaker_device_id,  # None=mặc định hệ thống; hoặc chỉ mục cố định
+                    samplerate=output_sample_rate,
+                    channels=AudioConfig.CHANNELS,
+                    dtype=np.int16,
+                    blocksize=device_output_frame_size,
+                    callback=self._output_callback,
+                    finished_callback=self._output_finished_callback,
+                    latency="low",
+                )
 
             self.input_stream.start()
-            self.output_stream.start()
+            if self.output_stream:
+                self.output_stream.start()
 
             logger.info("Luồng âm thanh đã khởi động")
 
