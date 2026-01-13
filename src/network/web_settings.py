@@ -1279,6 +1279,20 @@ class WebSettingsServer:
             audio_devices["mic_distance"] = mic_distance
             audio_devices["speaker_angle"] = speaker_angle
             audio_devices["hdmi_audio"] = hdmi_audio
+            
+            # Khi HDMI enabled, tìm và set output device là HDMI
+            if hdmi_audio:
+                import sounddevice as sd
+                devices = sd.query_devices()
+                for i, d in enumerate(devices):
+                    if d['max_output_channels'] > 0:
+                        name_lower = d['name'].lower()
+                        if 'hdmi' in name_lower or 'vc4hdmi' in name_lower:
+                            audio_devices["output_device_id"] = i
+                            audio_devices["output_device_name"] = d['name']
+                            logger.info(f"🔊 HDMI device set: [{i}] {d['name']}")
+                            break
+            
             self.config.update_config("AUDIO_DEVICES", audio_devices)
             
             # Áp dụng volume ngay bằng amixer
