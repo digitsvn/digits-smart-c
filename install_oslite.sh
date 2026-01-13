@@ -164,7 +164,7 @@ install_desktop() {
         2>&1 | tee -a "$LOG_FILE"
     
     # === VIDEO CODECS & HARDWARE ACCELERATION ===
-    log "Cài đặt GStreamer + Video Codecs + Hardware Acceleration..."
+    log "Cài đặt GStreamer + Video Codecs..."
     sudo apt-get install -y \
         gstreamer1.0-plugins-base \
         gstreamer1.0-plugins-good \
@@ -172,15 +172,18 @@ install_desktop() {
         gstreamer1.0-plugins-ugly \
         gstreamer1.0-libav \
         gstreamer1.0-tools \
-        gstreamer1.0-omx \
         gstreamer1.0-gl \
         gstreamer1.0-qt5 \
-        gstreamer1.0-v4l2 \
         libgstreamer1.0-dev \
         libgstreamer-plugins-base1.0-dev \
-        libv4l-0 \
         v4l-utils \
         2>&1 | tee -a "$LOG_FILE" || true
+    
+    # Cài thêm các package có thể có (ignore error nếu không có)
+    sudo apt-get install -y gstreamer1.0-omx 2>/dev/null || true
+    sudo apt-get install -y gstreamer1.0-v4l2 2>/dev/null || true
+    sudo apt-get install -y libv4l-0 2>/dev/null || true
+    sudo apt-get install -y libv4l-0t64 2>/dev/null || true
     
     # Thêm user vào group video/render cho hardware acceleration
     sudo usermod -aG video $USER
