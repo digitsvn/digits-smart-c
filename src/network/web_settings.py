@@ -1280,10 +1280,23 @@ class WebSettingsServer:
             audio_devices["speaker_angle"] = speaker_angle
             audio_devices["hdmi_audio"] = hdmi_audio
             
+            import sounddevice as sd
+            devices = sd.query_devices()
+            
+            # Khi I2S enabled, tìm và set input device là I2S mic
+            if i2s_enabled:
+                i2s_keywords = ["googlevoicehat", "simple-card", "i2s", "inmp441", "snd_rpi"]
+                for i, d in enumerate(devices):
+                    if d['max_input_channels'] > 0:
+                        name_lower = d['name'].lower()
+                        if any(kw in name_lower for kw in i2s_keywords):
+                            audio_devices["input_device_id"] = i
+                            audio_devices["input_device_name"] = d['name']
+                            logger.info(f"🎤 I2S MIC device set: [{i}] {d['name']}")
+                            break
+            
             # Khi HDMI enabled, tìm và set output device là HDMI
             if hdmi_audio:
-                import sounddevice as sd
-                devices = sd.query_devices()
                 for i, d in enumerate(devices):
                     if d['max_output_channels'] > 0:
                         name_lower = d['name'].lower()
