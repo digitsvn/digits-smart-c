@@ -281,22 +281,39 @@ class AudioCodec:
         Khởi tạo thiết bị âm thanh.
         """
         try:
+            logger.info("=== Bắt đầu khởi tạo Audio Codec ===")
+            
             # Hiển thị và chọn thiết bị âm thanh (tự động chọn lần đầu và ghi vào cấu hình; không ghi đè sau đó)
             await self._select_audio_devices()
+            
+            logger.info(f"MIC device ID: {self.mic_device_id}")
+            logger.info(f"Speaker device ID: {self.speaker_device_id}")
             
             # Set ALSA default device cho HDMI nếu enabled
             if self._hdmi_audio and self._hdmi_device_name:
                 self._set_alsa_hdmi_default()
 
             # Lấy thông tin mặc định đầu vào/đầu ra an toàn (tránh -1)
-            if self.mic_device_id is not None and self.mic_device_id >= 0:
-                input_device_info = sd.query_devices(self.mic_device_id)
-            else:
+            try:
+                if self.mic_device_id is not None and self.mic_device_id >= 0:
+                    input_device_info = sd.query_devices(self.mic_device_id)
+                    logger.info(f"Input device: {input_device_info['name']}")
+                else:
+                    input_device_info = sd.query_devices(kind="input")
+                    logger.info(f"Using default input: {input_device_info['name']}")
+            except Exception as e:
+                logger.error(f"Lỗi query input device: {e}")
                 input_device_info = sd.query_devices(kind="input")
 
-            if self.speaker_device_id is not None and self.speaker_device_id >= 0:
-                output_device_info = sd.query_devices(self.speaker_device_id)
-            else:
+            try:
+                if self.speaker_device_id is not None and self.speaker_device_id >= 0:
+                    output_device_info = sd.query_devices(self.speaker_device_id)
+                    logger.info(f"Output device: {output_device_info['name']}")
+                else:
+                    output_device_info = sd.query_devices(kind="output")
+                    logger.info(f"Using default output: {output_device_info['name']}")
+            except Exception as e:
+                logger.error(f"Lỗi query output device: {e}")
                 output_device_info = sd.query_devices(kind="output")
 
             self.device_input_sample_rate = int(input_device_info["default_samplerate"])
