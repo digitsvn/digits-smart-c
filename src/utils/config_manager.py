@@ -83,7 +83,9 @@ class ConfigManager:
             # Beamforming settings
             "beamforming_enabled": False,
             "mic_distance": 8.0,    # Khoảng cách giữa 2 mic (cm)
-            "speaker_angle": 180.0  # Góc của loa (180 = phía sau)
+            "speaker_angle": 180.0, # Góc của loa (180 = phía sau)
+            # HDMI Audio output
+            "hdmi_audio": False     # True = HDMI, False = 3.5mm jack
         },
         # Video Background settings
         "VIDEO_BACKGROUND": {

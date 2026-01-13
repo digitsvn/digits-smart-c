@@ -300,6 +300,16 @@ DASHBOARD_HTML = """
                     oninput="document.getElementById('speakerVolumeValue').textContent=this.value"
                     style="width:100%; accent-color:#667eea;">
             </div>
+            <div class="form-group" style="margin-top: 15px;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="hdmiAudio" style="width: 20px; height: 20px; margin-right: 10px;">
+                    📺 Xuất âm thanh qua HDMI (thay vì 3.5mm jack)
+                </label>
+                <div style="font-size: 11px; color: #94a3b8; margin-top: 5px; margin-left: 30px;">
+                    Khi bật: Audio → HDMI → TV/Monitor<br>
+                    Khi tắt: Audio → 3.5mm Headphone jack
+                </div>
+            </div>
             <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Loa</button>
             <div id="speakerStatus"></div>
         </div>
@@ -685,6 +695,7 @@ DASHBOARD_HTML = """
             const beamformingEnabled = document.getElementById('beamformingEnabled').checked;
             const micDistance = parseFloat(document.getElementById('micDistance').value) || 8;
             const speakerAngle = parseFloat(document.getElementById('speakerAngle').value) || 180;
+            const hdmiAudio = document.getElementById('hdmiAudio').checked;
             
             try {
                 const resp = await fetch('/api/audio', {
@@ -693,7 +704,8 @@ DASHBOARD_HTML = """
                     body: JSON.stringify({
                         micDevice, speakerDevice, micVolume, speakerVolume, 
                         i2sEnabled, i2sStereo,
-                        beamformingEnabled, micDistance, speakerAngle
+                        beamformingEnabled, micDistance, speakerAngle,
+                        hdmiAudio
                     })
                 });
                 const data = await resp.json();
@@ -753,6 +765,9 @@ DASHBOARD_HTML = """
                 document.getElementById('beamformingEnabled').checked = data.beamforming_enabled || false;
                 document.getElementById('micDistance').value = data.mic_distance || 8;
                 document.getElementById('speakerAngle').value = data.speaker_angle || 180;
+                
+                // HDMI Audio
+                document.getElementById('hdmiAudio').checked = data.hdmi_audio || false;
                 
                 toggleI2S();
                 toggleBeamforming();
@@ -1155,6 +1170,7 @@ class WebSettingsServer:
             beamforming_enabled = audio_devices_config.get("beamforming_enabled", False)
             mic_distance = audio_devices_config.get("mic_distance", 8.0)
             speaker_angle = audio_devices_config.get("speaker_angle", 180.0)
+            hdmi_audio = audio_devices_config.get("hdmi_audio", False)
             
             return web.json_response({
                 "input_devices": input_devices,
@@ -1168,6 +1184,7 @@ class WebSettingsServer:
                 "beamforming_enabled": beamforming_enabled,
                 "mic_distance": mic_distance,
                 "speaker_angle": speaker_angle,
+                "hdmi_audio": hdmi_audio,
             })
         except Exception as e:
             return web.json_response({"input_devices": [], "output_devices": [], "error": str(e)})
@@ -1186,19 +1203,21 @@ class WebSettingsServer:
             beamforming_enabled = data.get("beamformingEnabled", False)
             mic_distance = float(data.get("micDistance", 8.0))
             speaker_angle = float(data.get("speakerAngle", 180.0))
+            hdmi_audio = data.get("hdmiAudio", False)
             
             self.config.update_config("AUDIO.INPUT_DEVICE_INDEX", mic_device)
             self.config.update_config("AUDIO.OUTPUT_DEVICE_INDEX", speaker_device)
             self.config.update_config("AUDIO.MIC_VOLUME", mic_volume)
             self.config.update_config("AUDIO.SPEAKER_VOLUME", speaker_volume)
             
-            # I2S & Beamforming settings trong AUDIO_DEVICES
+            # I2S & Beamforming & HDMI settings trong AUDIO_DEVICES
             audio_devices = self.config.get_config("AUDIO_DEVICES", {}) or {}
             audio_devices["i2s_enabled"] = i2s_enabled
             audio_devices["i2s_stereo"] = i2s_stereo
             audio_devices["beamforming_enabled"] = beamforming_enabled
             audio_devices["mic_distance"] = mic_distance
             audio_devices["speaker_angle"] = speaker_angle
+            audio_devices["hdmi_audio"] = hdmi_audio
             self.config.update_config("AUDIO_DEVICES", audio_devices)
             
             # Áp dụng volume ngay bằng amixer
@@ -1208,11 +1227,26 @@ class WebSettingsServer:
             except Exception:
                 pass
             
+            # Apply HDMI audio output setting
+            try:
+                if hdmi_audio:
+                    # Set HDMI as default output
+                    subprocess.run(["amixer", "-c", "vc4hdmi0", "set", "PCM", f"{speaker_volume}%"], capture_output=True, timeout=5)
+                    logger.info("HDMI audio enabled")
+                else:
+                    # Use headphone jack
+                    subprocess.run(["amixer", "set", "Headphone", f"{speaker_volume}%"], capture_output=True, timeout=5)
+                    logger.info("Headphone jack audio enabled")
+            except Exception as e:
+                logger.warning(f"HDMI audio switch failed: {e}")
+            
             msg = "Đã lưu cài đặt âm thanh!"
             if i2s_enabled:
                 msg += " (I2S: " + ("Stereo" if i2s_stereo else "Mono") + ")"
             if beamforming_enabled and i2s_stereo:
                 msg += f" + Beamforming (mic: {mic_distance}cm, loa: {speaker_angle}°)"
+            if hdmi_audio:
+                msg += " | 📺 HDMI Audio"
             
             return web.json_response({"success": True, "message": msg})
         except Exception as e:
