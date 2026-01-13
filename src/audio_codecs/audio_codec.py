@@ -94,6 +94,10 @@ class AudioCodec:
         # PulseAudio support (giải quyết conflict video vs AI audio)
         self._pulseaudio_enabled = False
         
+        # Audio write buffer - gom nhiều chunk nhỏ rồi write một lần
+        self._hdmi_write_buffer = bytearray()
+        self._hdmi_write_threshold = 3200  # ~100ms audio @16kHz mono 16bit
+        
         # Beamforming processor for dual mic
         self.beamforming = BeamformingProcessor()
         self._beamforming_enabled = False
@@ -547,6 +551,8 @@ class AudioCodec:
         """
         Ghi audio data vào HDMI aplay process.
         audio_data: numpy array int16
+        
+        Buffer nhiều chunks nhỏ rồi write một lần để giảm syscalls.
         """
         # Health check trước khi ghi
         if not self._check_aplay_health():
@@ -559,15 +565,32 @@ class AudioCodec:
         
         if self._hdmi_aplay_process and self._hdmi_aplay_process.stdin:
             try:
-                self._hdmi_aplay_process.stdin.write(audio_data.tobytes())
-                self._hdmi_aplay_process.stdin.flush()
+                # Thêm vào buffer
+                self._hdmi_write_buffer.extend(audio_data.tobytes())
+                
+                # Chỉ write khi buffer đủ lớn (giảm syscalls)
+                if len(self._hdmi_write_buffer) >= self._hdmi_write_threshold:
+                    self._hdmi_aplay_process.stdin.write(bytes(self._hdmi_write_buffer))
+                    self._hdmi_aplay_process.stdin.flush()
+                    self._hdmi_write_buffer.clear()
+                    
             except BrokenPipeError:
-                # aplay process đã chết
                 logger.warning("HDMI aplay broken pipe, restarting...")
+                self._hdmi_write_buffer.clear()
                 self._stop_hdmi_aplay()
                 self._start_hdmi_aplay()
             except Exception as e:
                 logger.warning(f"HDMI aplay write error: {e}")
+    
+    def _flush_hdmi_buffer(self):
+        """Flush remaining audio buffer khi TTS kết thúc."""
+        if self._hdmi_write_buffer and self._hdmi_aplay_process and self._hdmi_aplay_process.stdin:
+            try:
+                self._hdmi_aplay_process.stdin.write(bytes(self._hdmi_write_buffer))
+                self._hdmi_aplay_process.stdin.flush()
+                self._hdmi_write_buffer.clear()
+            except Exception as e:
+                logger.warning(f"Flush HDMI buffer error: {e}")
 
     async def initialize(self):
         """
@@ -1501,6 +1524,9 @@ class AudioCodec:
         Gọi khi nhận được tts stop message từ server.
         Điều này sẽ reset echo period sau _echo_guard_duration.
         """
+        # Flush remaining audio trong buffer
+        self._flush_hdmi_buffer()
+        
         self._is_playing = False
         self._playback_end_time = time.time()
         logger.info("🔊 Playback ended, echo guard active for 0.5s")
