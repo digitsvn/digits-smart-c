@@ -205,17 +205,23 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
     # =========================================================================
     # Video (camera / mp4) trong GUI
     # =========================================================================
-
     def _start_video_from_config(self) -> None:
         """Đọc cấu hình VIDEO_BACKGROUND để bật video nền trong GUI.
 
         Sử dụng native QML Video player (hardware accelerated).
         Hỗ trợ: file local, WebP animation, YouTube URL.
+        
+        LƯU Ý: Video MP4 sẽ bị tắt nếu HDMI audio enabled vì gstreamer
+        chiếm HDMI device, không cho aplay truy cập.
         """
         from src.utils.config_manager import ConfigManager
         from src.utils.resource_finder import get_project_root
 
         cfg = ConfigManager.get_instance()
+        
+        # Kiểm tra HDMI audio có enabled không
+        audio_cfg = cfg.get_config("AUDIO_DEVICES", {}) or {}
+        hdmi_audio_enabled = audio_cfg.get("hdmi_audio", False)
         
         # Thử đọc config mới VIDEO_BACKGROUND
         video_cfg = cfg.get_config("VIDEO_BACKGROUND", {}) or {}
@@ -232,6 +238,17 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
                     "VIDEO_LOOP": camera_cfg.get("VIDEO_LOOP", True)
                 }
                 self.logger.info(f"[VIDEO] Fallback từ CAMERA config: {video_cfg}")
+        
+        # ⚠️ HDMI audio và video MP4 không thể cùng sử dụng
+        # gstreamer chiếm HDMI device, aplay không thể truy cập
+        if hdmi_audio_enabled and video_cfg.get("ENABLED"):
+            self.logger.warning(
+                "[VIDEO] ⚠️ HDMI audio enabled - Video MP4 bị TẮT để AI audio hoạt động. "
+                "Dùng GIF/WebP animated thay thế nếu cần video background."
+            )
+            self.display_model.update_video_frame_url("")
+            self.display_model.update_video_file_path("")
+            return
         
         # Kiểm tra có bật video không
         if not video_cfg.get("ENABLED"):
