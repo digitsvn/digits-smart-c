@@ -284,8 +284,18 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
             </div>
-            <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Mic</button>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Mic</button>
+                <button class="btn btn-success" onclick="saveAndRestartAudio()" 
+                    style="background: linear-gradient(135deg, #10b981, #059669);">
+                    🔄 Lưu & Áp dụng ngay
+                </button>
+            </div>
             <div id="micStatus"></div>
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 8px;">
+                💡 "Lưu Mic" = Lưu config, cần restart app để áp dụng I2S/Beamforming<br>
+                💡 "Lưu & Áp dụng ngay" = Lưu + Restart Audio System ngay lập tức
+            </div>
         </div>
         
         <div class="card">
@@ -716,6 +726,30 @@ DASHBOARD_HTML = """
             }
         }
         
+        async function saveAndRestartAudio() {
+            // Lưu config trước
+            await saveAudio();
+            
+            // Gọi API restart audio
+            showStatus('micStatus', 'info', '🔄 Đang khởi động lại Audio System...');
+            
+            try {
+                const resp = await fetch('/api/audio/restart', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showStatus('micStatus', 'success', '✅ ' + data.message);
+                    showStatus('speakerStatus', 'success', '✅ Audio đã được áp dụng!');
+                } else {
+                    showStatus('micStatus', 'error', '❌ ' + data.message);
+                }
+            } catch (e) {
+                showStatus('micStatus', 'error', 'Lỗi restart audio: ' + e.message);
+            }
+        }
+        
         function showStatus(id, type, message) {
             const el = document.getElementById(id);
             el.className = 'status ' + type;
@@ -956,6 +990,7 @@ class WebSettingsServer:
         self.app.router.add_post('/api/youtube', self._handle_youtube)
         self.app.router.add_get('/api/audio/devices', self._handle_audio_devices)
         self.app.router.add_post('/api/audio', self._handle_audio)
+        self.app.router.add_post('/api/audio/restart', self._handle_audio_restart)
         # Wake Word
         self.app.router.add_get('/api/wakeword', self._handle_wakeword_get)
         self.app.router.add_post('/api/wakeword', self._handle_wakeword_post)
@@ -1251,6 +1286,72 @@ class WebSettingsServer:
             return web.json_response({"success": True, "message": msg})
         except Exception as e:
             return web.json_response({"success": False, "message": str(e)})
+    
+    async def _handle_audio_restart(self, request):
+        """Restart audio system để áp dụng cấu hình mới (I2S, Beamforming, etc.)"""
+        try:
+            from src.application import Application
+            app = Application._instance
+            
+            if not app:
+                return web.json_response({"success": False, "message": "App chưa khởi động"})
+            
+            # Lấy audio plugin
+            audio_plugin = app.plugins.get_plugin("audio")
+            if not audio_plugin or not hasattr(audio_plugin, "codec"):
+                return web.json_response({"success": False, "message": "Audio plugin không tìm thấy"})
+            
+            codec = audio_plugin.codec
+            
+            # Stop current streams
+            logger.info("Stopping audio streams for restart...")
+            await codec.stop_streams()
+            
+            # Reload config
+            self.config.reload_config()
+            
+            # Reinitialize codec với config mới
+            logger.info("Reinitializing audio codec...")
+            
+            # Check I2S & Beamforming settings
+            audio_devices = self.config.get_config("AUDIO_DEVICES", {}) or {}
+            i2s_enabled = audio_devices.get("i2s_enabled", False)
+            i2s_stereo = audio_devices.get("i2s_stereo", False)
+            beamforming_enabled = audio_devices.get("beamforming_enabled", False)
+            mic_distance = audio_devices.get("mic_distance", 8.0)
+            speaker_angle = audio_devices.get("speaker_angle", 180.0)
+            
+            # Update beamforming processor if exists
+            if hasattr(codec, "beamforming") and codec.beamforming:
+                codec.beamforming.set_mic_distance(mic_distance)
+                codec.beamforming.enable(beamforming_enabled)
+                logger.info(f"Beamforming updated: enabled={beamforming_enabled}, distance={mic_distance}cm")
+            elif beamforming_enabled and i2s_stereo:
+                # Create new beamforming processor
+                from src.audio_codecs.beamforming import BeamformingProcessor
+                codec.beamforming = BeamformingProcessor(
+                    mic_distance=mic_distance / 100.0,
+                    sample_rate=16000
+                )
+                codec.beamforming.enable(True)
+                logger.info(f"Beamforming created: distance={mic_distance}cm")
+            
+            # Restart streams
+            logger.info("Starting audio streams...")
+            await codec.start_streams()
+            
+            msg = "Audio System đã khởi động lại!"
+            if i2s_enabled:
+                msg += f" | I2S: {'Stereo' if i2s_stereo else 'Mono'}"
+            if beamforming_enabled:
+                msg += f" | Beamforming: ON ({mic_distance}cm)"
+            
+            logger.info(msg)
+            return web.json_response({"success": True, "message": msg})
+            
+        except Exception as e:
+            logger.error(f"Audio restart failed: {e}", exc_info=True)
+            return web.json_response({"success": False, "message": f"Lỗi: {str(e)}"})
     
     # ========== WAKE WORD ==========
     async def _handle_wakeword_get(self, request):
