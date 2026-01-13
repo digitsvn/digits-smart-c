@@ -182,8 +182,8 @@ def setup_audio_environment():
     1. Kiểm tra dependencies (cài nếu thiếu)
     2. Kill tất cả audio processes
     3. Restart PulseAudio
-    4. Set HDMI làm default sink
-    5. Return True nếu PulseAudio ready
+    4. Set environment để video không chiếm HDMI
+    5. Return True để dùng aplay trực tiếp
     """
     if not is_raspberry_pi():
         logger.info("Not on Raspberry Pi, skip audio setup")
@@ -198,29 +198,21 @@ def setup_audio_environment():
     except Exception as e:
         logger.warning(f"Dependency check failed: {e}")
     
-    # Step 1: Kill stale processes
+    # Step 1: Kill stale audio processes để giải phóng HDMI
     kill_audio_processes()
     
-    # Step 2: Restart PulseAudio
-    pulseaudio_ok = restart_pulseaudio()
+    # Step 2: Set environment để video KHÔNG dùng audio
+    # Điều này ngăn gstreamer/Qt Video chiếm HDMI audio device
+    os.environ['GST_AUDIO_SINK'] = 'fakesink'
+    os.environ['PULSE_SINK'] = 'null'
+    logger.info("📺 Video audio disabled (GST_AUDIO_SINK=fakesink)")
     
-    if not pulseaudio_ok:
-        logger.warning("PulseAudio not available, will use ALSA")
-        return False
+    # Step 3: Đợi một chút để các process cũ release device
+    import time
+    time.sleep(1)
     
-    # Step 3: Find and set HDMI sink
-    hdmi_sink = find_hdmi_sink()
-    if hdmi_sink:
-        set_default_sink(hdmi_sink)
-    else:
-        logger.warning("No HDMI sink found, using default")
-    
-    # Set environment for gstreamer to use pulseaudio
-    os.environ['GST_AUDIO_SINK'] = 'pulsesink'
-    os.environ['PULSE_PROP_media.role'] = 'video'
-    
-    logger.info("=== Audio Setup: Complete ===")
-    return True
+    logger.info("=== Audio Setup: Complete - HDMI ready for AI audio ===")
+    return True  # Báo hiệu dùng aplay trực tiếp, không cần PulseAudio
 
 
 def get_pulseaudio_sink_for_aplay() -> str | None:

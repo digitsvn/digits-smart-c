@@ -330,69 +330,23 @@ class AudioCodec:
         
         hdmi_card = self._hdmi_device_name or "vc4hdmi0"
         
-        # ===== PHƯƠNG ÁN 1: Dùng PulseAudio paplay (recommended) =====
-        if self._pulseaudio_enabled:
-            try:
-                # paplay đọc từ stdin với format raw
-                cmd = [
-                    "paplay",
-                    "--raw",
-                    "--format=s16le",
-                    f"--rate={AudioConfig.OUTPUT_SAMPLE_RATE}",
-                    "--channels=1"
-                ]
-                
-                logger.info(f"Starting PulseAudio paplay: {' '.join(cmd)}")
-                self._hdmi_aplay_process = subprocess.Popen(
-                    cmd,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE
-                )
-                
-                time.sleep(0.3)
-                if self._hdmi_aplay_process.poll() is not None:
-                    stderr_output = self._hdmi_aplay_process.stderr.read().decode('utf-8', errors='ignore')
-                    logger.warning(f"paplay failed: {stderr_output[:100]}")
-                else:
-                    # Warmup
-                    try:
-                        silence = b'\x00' * 4800
-                        self._hdmi_aplay_process.stdin.write(silence)
-                        self._hdmi_aplay_process.stdin.flush()
-                    except Exception as e:
-                        logger.warning(f"paplay warmup failed: {e}")
-                    
-                    self._hdmi_use_aplay = True
-                    logger.info("🔊 HDMI output via PulseAudio paplay")
-                    return
-                    
-            except FileNotFoundError:
-                logger.warning("paplay not found, falling back to aplay")
-            except Exception as e:
-                logger.warning(f"paplay failed: {e}")
-        
-        # ===== PHƯƠNG ÁN 2: Dùng ALSA aplay trực tiếp =====
-        # Thử nhiều device format khác nhau
-        device_options = [
-            f"dmix:CARD={hdmi_card}",
-            f"sysdefault:CARD={hdmi_card}",
-            f"plughw:CARD={hdmi_card}",
+        # Dùng ALSA aplay trực tiếp với plughw
+        # Video đã bị mute bằng GST_AUDIO_SINK=fakesink nên HDMI free
+        cmd = [
+            "aplay",
+            "-D", f"plughw:CARD={hdmi_card}",
+            "-f", "S16_LE",
+            "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
+            "-c", "1",
+            "-q",
+            "-"
         ]
         
-        for device in device_options:
-            cmd = [
-                "aplay",
-                "-D", device,
-                "-f", "S16_LE",
-                "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
-                "-c", "1",
-                "-q",
-                "-"
-            ]
-            
+        # Retry loop - đợi nếu device chưa sẵn sàng
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
-                logger.info(f"Trying HDMI device: {device}")
+                logger.info(f"Starting HDMI aplay (attempt {attempt+1}/{max_retries}): plughw:CARD={hdmi_card}")
                 self._hdmi_aplay_process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
@@ -403,8 +357,13 @@ class AudioCodec:
                 time.sleep(0.3)
                 if self._hdmi_aplay_process.poll() is not None:
                     stderr_output = self._hdmi_aplay_process.stderr.read().decode('utf-8', errors='ignore')
-                    logger.warning(f"Device {device} failed: {stderr_output[:100]}")
-                    continue
+                    if "busy" in stderr_output.lower():
+                        logger.warning(f"HDMI device busy, waiting...")
+                        time.sleep(2)
+                        continue
+                    else:
+                        logger.warning(f"aplay failed: {stderr_output[:100]}")
+                        continue
                 
                 # Warmup
                 try:
@@ -416,15 +375,15 @@ class AudioCodec:
                     continue
                 
                 self._hdmi_use_aplay = True
-                logger.info(f"🔊 HDMI aplay started with device: {device}")
+                logger.info(f"🔊 HDMI aplay started successfully!")
                 return
                 
             except Exception as e:
-                logger.warning(f"Device {device} exception: {e}")
-                continue
+                logger.warning(f"aplay attempt {attempt+1} failed: {e}")
+                time.sleep(1)
         
-        # Hết options
-        logger.error(f"Failed to start HDMI audio output with any method")
+        # Hết retry
+        logger.error(f"Failed to start HDMI aplay after {max_retries} attempts")
         self._hdmi_use_aplay = False
     
     def _stop_hdmi_aplay(self):
