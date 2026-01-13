@@ -356,16 +356,14 @@ class AudioCodec:
         ])
         
         for device in device_options:
-            # Buffer lớn để tránh ngắt quãng (underrun)
-            # -B: buffer time in microseconds
-            # 500000us = 0.5s buffer (không gây delay vì audio tích lũy)
+            # Dùng aplay đơn giản, không set buffer options
+            # ALSA tự quản lý buffer mặc định
             cmd = [
                 "aplay",
                 "-D", device,
                 "-f", "S16_LE",
                 "-r", str(AudioConfig.OUTPUT_SAMPLE_RATE),
                 "-c", "1",
-                "-B", "500000",  # 0.5 giây buffer (microseconds)
                 "-q",
                 "-"
             ]
