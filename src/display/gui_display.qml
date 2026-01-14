@@ -94,8 +94,8 @@ Rectangle {
             visible: bgLayer.bgMode === "slide" && displayModel && displayModel.currentSlideUrl && displayModel.currentSlideUrl.length > 0
             source: visible ? displayModel.currentSlideUrl : ""
             
-            // Cải thiện chất lượng hiển thị
-            fillMode: Image.PreserveAspectCrop 
+            // Revert to Fit to show full image content (User Request)
+            fillMode: Image.PreserveAspectFit
             mipmap: true
             smooth: true
             opacity: 1.0
