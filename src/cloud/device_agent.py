@@ -588,14 +588,25 @@ class CloudAgent:
             app = Application._instance
             if app:
                 if "language" in params:
-                    app.config.update_config("SYSTEM.LANGUAGE", params["language"])
+                    # Map language code to full locale if needed
+                    lang = params["language"]
+                    if lang == "vi": lang = "vi_VN"
+                    elif lang == "en": lang = "en_US"
+                    elif lang == "zh": lang = "zh_CN"
+                    app.config.update_config("SYSTEM.CURRENT_LOCALE", lang)
+                    
                 if "ota_url" in params:
-                    app.config.update_config("NETWORK.OTA_URL", params["ota_url"])
+                    app.config.update_config("SYSTEM_OPTIONS.ota_server_url", params["ota_url"])
+                    
                 if "ws_url" in params:
-                    app.config.update_config("NETWORK.WS_URL", params["ws_url"])
+                    # This maps to Cloud Management URL as per dashboard logic
+                    app.config.update_config("SYSTEM_OPTIONS.network.cloud_management_url", params["ws_url"])
+                    # Also update Voice URL if needed, or keep them separate?
+                    # For now, let's assume valid Cloud URL is priority.
                 
                 return {"status": "ok"}
         except Exception as e:
+            logger.error(f"Set system config failed: {e}")
             return {"status": "error", "message": str(e)}
         
         return {"status": "error", "message": "App not available"}
