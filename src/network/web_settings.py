@@ -1934,6 +1934,8 @@ class WebSettingsServer:
             
             language = self.config.get_config("SYSTEM_OPTIONS.LANGUAGE", "vi-VN")
             ota_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", "")
+            if not ota_url:
+                ota_url = "https://vimate.vn/api/v1/ota"
             # Ưu tiên URL quản lý riêng, nếu không có thì fallback sang Voice URL
             ws_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.CLOUD_MANAGEMENT_URL", "")
             if not ws_url:
