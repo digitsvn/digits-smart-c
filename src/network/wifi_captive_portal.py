@@ -468,7 +468,7 @@ class CaptivePortalServer:
     Sử dụng aiohttp để tạo web server async.
     """
     
-    def __init__(self, host: str = "0.0.0.0", port: int = 80):
+    def __init__(self, host: str = "0.0.0.0", port: int = 8080):
         self.host = host
         self.port = port
         self._server = None

@@ -2775,10 +2775,20 @@ _server: Optional[WebSettingsServer] = None
 async def start_web_settings(port: int = 8080):
     """Khởi động Web Settings Server."""
     global _server
-    if _server is None:
-        _server = WebSettingsServer(port)
-        await _server.start()
-    return _server
+    try:
+        if _server is None:
+            logger.info(f"Starting Web Settings Server on port {port}...")
+            _server = WebSettingsServer(port)
+            await _server.start()
+            logger.info(f"Web Settings Server started successfully on port {port}")
+        else:
+            logger.info(f"Web Settings Server already running")
+        return _server
+    except Exception as e:
+        logger.error(f"Failed to start Web Settings Server: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 async def stop_web_settings():
