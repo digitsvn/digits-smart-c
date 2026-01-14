@@ -366,6 +366,17 @@ DASHBOARD_HTML = """
             <button class="btn btn-primary" onclick="connectWifi()" style="margin-bottom: 10px;">📶 Kết nối</button>
             <button class="btn btn-success" onclick="scanWifi()">🔄 Quét lại</button>
             <div id="wifiStatus"></div>
+            
+            <!-- Saved Networks Section -->
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #444;">
+                <label style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>📁 Mạng đã lưu:</span>
+                    <button onclick="loadSavedNetworks()" style="padding: 5px 10px; font-size: 12px; background: rgba(255,255,255,0.1); border: 1px solid #666; border-radius: 5px; color: #fff; cursor: pointer;">↻ Refresh</button>
+                </label>
+                <div id="savedNetworks" style="margin-top: 10px;">
+                    <div style="color: #888; font-size: 13px;">Đang tải...</div>
+                </div>
+            </div>
         </div>
         
         <div class="card">
@@ -921,7 +932,10 @@ DASHBOARD_HTML = """
                     data.networks.forEach(n => {
                         const opt = document.createElement('option');
                         opt.value = n.ssid;
-                        opt.textContent = `${n.ssid} (${n.signal}dBm)`;
+                        // Hiển thị badge nếu đã lưu
+                        const savedBadge = n.saved ? ' ✓' : '';
+                        const securityBadge = n.security && n.security !== '--' ? ` 🔒` : '';
+                        opt.textContent = `${n.ssid}${savedBadge}${securityBadge} (${n.signal}%)`;
                         select.appendChild(opt);
                     });
                 } else {
@@ -934,6 +948,9 @@ DASHBOARD_HTML = """
                 } else {
                     document.getElementById('currentWifi').textContent = data.ip ? `Ethernet (${data.ip})` : 'Không kết nối';
                 }
+                
+                // Load saved networks
+                loadSavedNetworks();
             } catch (e) {
                 showStatus('wifiStatus', 'error', 'Quét thất bại');
             }
@@ -953,9 +970,64 @@ DASHBOARD_HTML = """
                 });
                 const data = await resp.json();
                 showStatus('wifiStatus', data.success ? 'success' : 'error', data.message);
-                if (data.success) scanWifi();
+                if (data.success) {
+                    scanWifi();
+                    loadSavedNetworks();
+                }
             } catch (e) {
                 showStatus('wifiStatus', 'error', 'Kết nối thất bại');
+            }
+        }
+        
+        async function loadSavedNetworks() {
+            const container = document.getElementById('savedNetworks');
+            try {
+                const resp = await fetch('/api/wifi/saved');
+                const data = await resp.json();
+                
+                if (data.networks && data.networks.length > 0) {
+                    container.innerHTML = data.networks.map(n => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 8px;">
+                            <span>
+                                ${n.connected ? '🟢' : '⚪'} ${n.ssid}
+                                ${n.connected ? '<span style="color: #38ef7d; font-size: 12px; margin-left: 5px;">Đang kết nối</span>' : ''}
+                            </span>
+                            <button onclick="forgetNetwork('${n.ssid.replace(/'/g, "\\'")}')" 
+                                style="padding: 5px 10px; font-size: 12px; background: rgba(245, 87, 108, 0.3); border: 1px solid #f5576c; border-radius: 5px; color: #f5576c; cursor: pointer;"
+                                ${n.connected ? 'disabled title="Không thể xóa mạng đang kết nối"' : ''}>
+                                🗑️ Quên
+                            </button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div style="color: #888; font-size: 13px;">Chưa có mạng nào được lưu</div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div style="color: #f5576c; font-size: 13px;">Lỗi tải danh sách</div>';
+            }
+        }
+        
+        async function forgetNetwork(ssid) {
+            if (!confirm(`Bạn có chắc muốn quên mạng "${ssid}"?\n\nBạn sẽ cần nhập lại mật khẩu nếu muốn kết nối lại.`)) {
+                return;
+            }
+            
+            try {
+                const resp = await fetch('/api/wifi/saved', {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ssid})
+                });
+                const data = await resp.json();
+                
+                if (data.success) {
+                    showStatus('wifiStatus', 'success', data.message);
+                    loadSavedNetworks();
+                } else {
+                    showStatus('wifiStatus', 'error', data.message);
+                }
+            } catch (e) {
+                showStatus('wifiStatus', 'error', 'Lỗi xóa mạng');
             }
         }
         
