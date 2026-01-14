@@ -13,7 +13,7 @@
 |-----------|-------|
 | 🎤 **Voice Interaction** | Tương tác bằng giọng nói với AI |
 | 🔊 **Wake Word Detection** | Luôn lắng nghe "Alexa", "Hey Lily", "Smart C" |
-| 📡 **WiFi Provisioning** | Tự động bật Hotspot khi chưa có WiFi |
+| 📡 **Auto WiFi Provisioning** | Tự động bật Hotspot + hiển thị QR code khi chưa có WiFi |
 | 🖥️ **Full HD GUI** | Giao diện 1920x1080, hỗ trợ Wayland |
 | 🔐 **Device Activation** | Kích hoạt thiết bị với server |
 | ⚡ **Auto-Update** | Tự động cập nhật khi khởi động |
@@ -21,6 +21,7 @@
 | 🎯 **Beamforming** | Delay-and-Sum beamforming khử nhiễu loa |
 | 📺 **HDMI Audio** | Output audio qua HDMI hoặc 3.5mm jack |
 | 🌐 **Web Dashboard** | Cấu hình từ xa qua `http://IP:8080` |
+| 📱 **Network Overlay** | Hiển thị IP + QR code trên GUI để dễ dàng cấu hình |
 
 ---
 
@@ -84,15 +85,55 @@ Boot Pi → Smart C AI khởi động
         /           \
    Không có        Có WiFi
       ↓               ↓
- Bật Hotspot      First Run?
-"SmartC-Setup"    /        \
-      ↓         Có         Không
-Captive Portal   ↓           ↓
-192.168.4.1   Settings   Activated?
-      ↓                  /        \
- Cấu hình WiFi       Chưa        Rồi
-                       ↓           ↓
-                   Activation → Chat Bot
+ Bật Hotspot      Hiển thị IP
+"SmartC-Setup"    + QR code
+      ↓               ↓
+Hiển thị trên     Web Dashboard
+GUI overlay:      http://IP:8080
+📶 WiFi: SmartC-Setup
+🔐 Pass: smartc123
+🌐 http://192.168.4.1:8080
+[QR Code]
+      ↓
+ Cấu hình WiFi
+      ↓
+Kết nối thành công
+      ↓
+Update GUI IP mới
+      ↓
+Auto WebSocket    → Chat Bot hoạt động
+reconnect           bình thường
+```
+
+### 📶 Network Overlay trên GUI
+
+Khi app khởi động, góc trên phải màn hình sẽ hiển thị:
+
+**Chế độ Hotspot (chưa có WiFi):**
+```
+╭─────────────────────────╮
+│ 📶 WiFi: SmartC-Setup   │
+│ 🔐 Pass: smartc123      │
+│ 🌐 http://192.168.4.1:8080 │
+│                         │
+│    ┌─────────┐          │
+│    │ QR Code │          │
+│    └─────────┘          │
+│ 📷 Quét để cấu hình     │
+╰─────────────────────────╯
+```
+
+**Chế độ Connected (đã có WiFi):**
+```
+╭─────────────────────────╮
+│ 📱 Settings:            │
+│ http://192.168.1.50:8080│
+│                         │
+│    ┌─────────┐          │
+│    │ QR Code │          │
+│    └─────────┘          │
+│ 📷 Quét để cấu hình     │
+╰─────────────────────────╯
 ```
 
 ---
@@ -100,7 +141,7 @@ Captive Portal   ↓           ↓
 ## 🎤 Wake Words
 
 | Từ khóa | Trigger |
-|---------|---------|
+|---------|---------| 
 | `alexa` | @alexa |
 | `hey lily` | @hey_lily |
 | `smart c` | @smartc |
@@ -114,7 +155,15 @@ Captive Portal   ↓           ↓
 ### WiFi Hotspot (Khi Không Có Mạng)
 - **SSID:** `SmartC-Setup`
 - **Password:** `smartc123`
-- **IP:** `192.168.4.1`
+- **Web Config:** `http://192.168.4.1:8080`
+
+### Web Dashboard
+Khi đã kết nối WiFi, truy cập `http://IP:8080` để:
+- Cấu hình WiFi
+- Chọn Audio Input/Output
+- Cấu hình Wake Word
+- Xem trạng thái thiết bị
+- Điều chỉnh Video Background
 
 ### Độ Phân Giải Cửa Sổ
 Chỉnh trong `config/config.json`:
@@ -184,7 +233,7 @@ Hỗ trợ microphone I2S MEMS INMP441 với Delay-and-Sum Beamforming.
 
 ---
 
-## � Troubleshooting
+## 🐛 Troubleshooting
 
 ```bash
 # Xem logs
@@ -206,6 +255,14 @@ bash ~/.digits/scripts/fix_autostart.sh && sudo reboot
 sudo bash ~/.digits/scripts/fix_display.sh && sudo reboot
 ```
 
+### Lỗi Thường Gặp
+
+| Lỗi | Nguyên nhân | Giải pháp |
+|-----|-------------|-----------|
+| Không thấy IP overlay | GUI chưa load xong | Đợi 5-10 giây sau khi boot |
+| QR code không hiện | Thiếu thư viện qrcode | `pip install qrcode[pil]` |
+| WebSocket không kết nối | Chưa có Internet | Kiểm tra WiFi đã kết nối |
+
 ---
 
 ## 📁 Cấu Trúc Thư Mục
@@ -222,8 +279,16 @@ sudo bash ~/.digits/scripts/fix_display.sh && sudo reboot
 ├── config/
 │   ├── config.json         # Cấu hình (tự động tạo)
 │   └── config.example.json # Template
+├── assets/
+│   ├── emojis/             # Emotion GIFs
+│   ├── qr_settings.png     # QR code cho web dashboard
+│   └── qr_hotspot.png      # QR code cho hotspot
 ├── models/                 # Wake word models
 ├── src/                    # Source code
+│   ├── application.py      # Main app logic
+│   ├── display/            # GUI components (QML)
+│   ├── network/            # WiFi, Hotspot, Web Settings
+│   └── plugins/            # Audio, UI, Wake Word plugins
 ├── scripts/                # Utility scripts
 └── logs/                   # Log files
 ```
