@@ -591,8 +591,10 @@ class Application:
         Đọc URL từ config, nếu có thì kết nối.
         """
         try:
-            # Đọc cloud server URL từ config (Ưu tiên key từ WebSettings)
-            cloud_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
+            # Priority: Dedicated Cloud Management URL -> WebSocket URL (Fallback) -> Old Key
+            cloud_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.CLOUD_MANAGEMENT_URL", "")
+            if not cloud_url:
+                cloud_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
             if not cloud_url:
                 cloud_url = self.config.get_config("CLOUD.SERVER_URL", "")
             

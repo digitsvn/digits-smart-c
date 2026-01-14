@@ -1934,7 +1934,10 @@ class WebSettingsServer:
             
             language = self.config.get_config("SYSTEM_OPTIONS.LANGUAGE", "vi-VN")
             ota_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", "")
-            ws_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
+            # Ưu tiên URL quản lý riêng, nếu không có thì fallback sang Voice URL
+            ws_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.CLOUD_MANAGEMENT_URL", "")
+            if not ws_url:
+                ws_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
             ws_token = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_ACCESS_TOKEN", "")
             
             # Version
@@ -1984,9 +1987,9 @@ class WebSettingsServer:
             if data.get("otaUrl"):
                 self.config.update_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", data.get("otaUrl"))
             
-            # WebSocket
+            # WebSocket (Cloud Management URL)
             if data.get("wsUrl"):
-                self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", data.get("wsUrl"))
+                self.config.update_config("SYSTEM_OPTIONS.NETWORK.CLOUD_MANAGEMENT_URL", data.get("wsUrl"))
             if data.get("wsToken"):
                 self.config.update_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_ACCESS_TOKEN", data.get("wsToken"))
             

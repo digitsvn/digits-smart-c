@@ -209,17 +209,10 @@ class Ota:
             # Cập nhật URL WebSocket
             # Cập nhật URL WebSocket
             if "url" in websocket_info:
-                current_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
-                new_url = websocket_info["url"]
-                
-                # PROTECT USER CONFIG: Keep 0nline.vn if configured
-                if "0nline.vn" in current_url or "116.118" in current_url:
-                     self.logger.warning(f"🔒 BẢO VỆ URL: Giữ lại {current_url}, bỏ qua OTA URL ({new_url})")
-                else:
-                    self.config.update_config(
-                        "SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", new_url
-                    )
-                    self.logger.info(f"URL WebSocket đã được cập nhật: {new_url}")
+                self.config.update_config(
+                    "SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", websocket_info["url"]
+                )
+                self.logger.info(f"URL WebSocket đã được cập nhật: {websocket_info['url']}")
 
             # Cập nhật Token WebSocket
             token_value = websocket_info.get("token", "test-token") or "test-token"
