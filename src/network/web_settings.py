@@ -142,6 +142,22 @@ DASHBOARD_HTML = """
         }
         .video-btn:hover { background: rgba(255,255,255,0.2); }
         .video-btn.active { background: #667eea; border-color: #667eea; }
+        
+        /* Tab Styles */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 5px; }
+        .tab-btn { flex: 1; padding: 12px; border: none; background: rgba(255,255,255,0.05); color: #aaa; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+        .tab-btn.active { background: #667eea; color: #fff; }
+        .tab-content { display: none; margin-bottom: 20px; }
+        .tab-content.active { display: block; }
+        
+        /* Gallery Styles */
+        .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 300px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+        .gallery-item { position: relative; aspect-ratio: 16/9; background: #000; border-radius: 4px; overflow: hidden; cursor: pointer; }
+        .gallery-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+        .gallery-item.selected { border: 2px solid #38ef7d; }
+        .gallery-item.selected img { opacity: 1; }
+        .check-icon { position: absolute; top: 5px; right: 5px; color: #38ef7d; display: none; background: rgba(0,0,0,0.5); border-radius: 50%; padding: 2px; }
+        .gallery-item.selected .check-icon { display: block; }
     </style>
 </head>
 <body>
@@ -165,297 +181,273 @@ DASHBOARD_HTML = """
             </div>
         </div>
         
-        <div class="card">
-            <h2>🎬 Video Nền</h2>
-            <div class="form-group">
-                <label>Chọn nhanh:</label>
-                <div class="video-list" id="videoList">Loading...</div>
-            </div>
-            <div class="form-group">
-                <label>Hoặc nhập đường dẫn:</label>
-                <input type="text" id="videoPath" placeholder="assets/videos/HTMTECH.mp4">
-            </div>
-            <button class="btn btn-primary" onclick="saveVideo()">💾 Lưu Video</button>
-            <div id="videoStatus"></div>
-            
-            <hr style="border-color: #444; margin: 20px 0;">
-            
-            <div class="form-group">
-                <label>📤 Upload Video mới:</label>
-                <input type="file" id="videoFile" accept="video/*,.gif,.webp" 
-                    style="display:none;" onchange="uploadVideo()">
-                <button class="btn btn-success" onclick="document.getElementById('videoFile').click()" 
-                    style="margin-top: 8px;">
-                    📁 Chọn File Upload
-                </button>
-                <div id="uploadProgress" style="margin-top: 10px; display: none;">
-                    <div style="background: #333; border-radius: 8px; overflow: hidden;">
-                        <div id="progressBar" style="height: 8px; background: linear-gradient(90deg, #667eea, #764ba2); width: 0%;"></div>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="openTab('bg')">🖼️ Background</button>
+            <button class="tab-btn" onclick="openTab('display')">🖥️ Hiển thị</button>
+            <button class="tab-btn" onclick="openTab('wifi')">📶 WiFi</button>
+            <button class="tab-btn" onclick="openTab('other')">⚙️ Khác</button>
+        </div>
+
+        <!-- BACKGROUND TAB -->
+        <div id="tab-bg" class="tab-content active">
+            <div class="card">
+                <h2>🖼️ Chọn Chế độ Nền</h2>
+                <div class="form-group">
+                    <select id="bgMode" onchange="toggleBgMode()">
+                        <option value="video">🎬 Video Player</option>
+                        <option value="slide">📸 Image Slideshow</option>
+                    </select>
+                </div>
+                
+                <!-- Video Section -->
+                <div id="videoSection">
+                    <div class="form-group">
+                        <label>Có sẵn:</label>
+                        <div class="video-list" id="videoList">Loading...</div>
                     </div>
-                    <small id="uploadText" style="color: #888;">Đang upload...</small>
+                    <div class="form-group">
+                        <input type="text" id="videoPath" placeholder="assets/videos/video.mp4">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveVideoConfig()">💾 Lưu Video</button>
+                    
+                    <hr style="border-color: #444; margin: 20px 0;">
+                    
+                    <div class="form-group">
+                        <label>📤 Upload Video mới:</label>
+                        <input type="file" id="videoFile" accept="video/*,.gif,.webp" style="display:none;" onchange="uploadVideo()">
+                        <button class="btn btn-success" onclick="document.getElementById('videoFile').click()">📁 Chọn Video Upload</button>
+                        <div id="videoUploadProgress" style="margin-top: 10px; display: none;">
+                            <div style="background: #333; border-radius: 8px; overflow: hidden; height: 8px;">
+                                <div id="videoProgressBar" style="height: 100%; background: #667eea; width: 0%;"></div>
+                            </div>
+                            <small id="videoUploadText">Uploading...</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Slide Section -->
+                <div id="slideSection" style="display: none;">
+                     <div class="form-group">
+                        <label>📤 Upload Ảnh mới:</label>
+                        <input type="file" id="imageFile" accept="image/*" style="display:none;" onchange="uploadImage()">
+                        <button class="btn btn-success" onclick="document.getElementById('imageFile').click()">📁 Chọn Ảnh Upload</button>
+                        <div id="imageUploadStatus" style="margin-top: 5px; color: #888;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chọn ảnh chạy Slide:</label>
+                        <div id="imageGallery" class="gallery">
+                            Loading...
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Thời gian chuyển (giây):</label>
+                        <input type="number" id="slideInterval" value="5" min="2" max="60">
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="saveSlideConfig()">💾 Lưu Slideshow</button>
+                </div>
+                
+                <div id="bgStatus" class="status" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- DISPLAY TAB -->
+        <div id="tab-display" class="tab-content">
+            <div class="card">
+                <h2>🔄 Xoay Màn Hình</h2>
+                <div class="form-group">
+                    <select id="rotation">
+                        <option value="normal">Không xoay (0°)</option>
+                        <option value="left">Xoay trái (90°)</option>
+                        <option value="inverted">Xoay ngược (180°)</option>
+                        <option value="right">Xoay phải (270°)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="saveRotation()">💾 Lưu</button>
+                <div id="rotationStatus"></div>
+            </div>
+            
+            <div class="card">
+                <h2>🖥️ Chế Độ Màn Hình</h2>
+                <div class="form-group">
+                    <label>Kích thước cửa sổ:</label>
+                    <select id="windowMode">
+                        <option value="screen_100">Toàn màn hình (100%)</option>
+                        <option value="screen_75">Cửa sổ 75%</option>
+                        <option value="fullhd">Full HD (1920x1080)</option>
+                        <option value="hd">HD (1280x720)</option>
+                        <option value="vertical_916">Dọc 9:16</option>
+                        <option value="default">Tự động</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="saveWindowMode()">💾 Lưu</button>
+                <div id="windowModeStatus"></div>
+            </div>
+        </div>
+        
+        <!-- OTHER TAB -->
+        <div id="tab-other" class="tab-content">
+            <div class="card">
+                <h2>📺 YouTube URL</h2>
+                <div class="form-group">
+                    <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
+                </div>
+                <button class="btn btn-primary" onclick="saveYoutube()">💾 Lưu YouTube</button>
+                <div id="youtubeStatus"></div>
+            </div>
+
+            <div class="card">
+                <h2>🔊 Âm Thanh</h2>
+                <h3>Ghi âm (Mic)</h3>
+                <div class="form-group">
+                    <select id="micDevice"></select>
+                </div>
+                <div class="form-group">
+                    <label>Volume Mic: <span id="micVolumeValue">100</span>%</label>
+                    <input type="range" id="micVolume" min="0" max="100" value="100" oninput="document.getElementById('micVolumeValue').textContent=this.value" style="width:100%">
+                </div>
+                <div class="form-group" style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-top: 5px;">
+                     <label><input type="checkbox" id="i2sEnabled" onchange="toggleI2S()"> 🎙️ Sử dụng I2S Mic (INMP441)</label>
+                     <div id="i2sOptions" style="display:none; margin-left: 20px; margin-top: 5px;">
+                        <label><input type="checkbox" id="i2sStereo" onchange="toggleBeamforming()"> Stereo</label>
+                        <label style="margin-left: 10px;"><input type="checkbox" id="beamformingEnabled"> Beamforming</label>
+                     </div>
+                </div>
+                
+                <h3 style="margin-top: 15px;">Phát (Loa)</h3>
+                <div class="form-group">
+                    <select id="speakerDevice"></select>
+                </div>
+                <div class="form-group">
+                    <label>Volume Loa: <span id="speakerVolumeValue">80</span>%</label>
+                    <input type="range" id="speakerVolume" min="0" max="100" value="80" oninput="document.getElementById('speakerVolumeValue').textContent=this.value" style="width:100%">
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="hdmiAudio"> 📺 Xuất HDMI</label>
+                </div>
+                
+                <div style="display: flex; gap: 5px; margin-top: 10px;">
+                    <button class="btn btn-primary" onclick="saveAudioConfig()">💾 Lưu Audio</button>
+                    <button class="btn btn-success" onclick="saveAndRestartAudio()">🔄 Lưu & Restart Audio</button>
+                </div>
+                <div id="audioStatus"></div>
+                
+                <hr style="border-color: #444; margin: 15px 0;">
+                
+                <h3>Kiểm tra</h3>
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn btn-secondary" onclick="testMic()">🎤 Test Mic</button>
+                    <button class="btn btn-secondary" onclick="testSpeaker()">🔊 Test Loa</button>
                 </div>
             </div>
-            <div id="uploadStatus"></div>
+
+            <div class="card">
+                <h2>🎤 Wake Word</h2>
+                <div class="form-group">
+                    <label><input type="checkbox" id="wakeWordEnabled"> Bật Wake Word</label>
+                </div>
+                <div class="form-group">
+                     <label>Độ nhạy: <span id="sensitivityValue">0.25</span></label>
+                     <input type="range" id="wakeWordSensitivity" min="0.1" max="0.5" step="0.05" value="0.25" oninput="document.getElementById('sensitivityValue').textContent=this.value" style="width:100%">
+                </div>
+                <button class="btn btn-primary" onclick="saveWakeWord()">💾 Lưu</button>
+            </div>
+
+            <div class="card">
+                <h2>⚙️ Hệ Thống & Test</h2>
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="checkUpdate()">🔄 Kiểm tra cập nhật Cloud</button>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-success" onclick="restartApp()">🔄 Restart App</button>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-danger" onclick="rebootPi()">🔌 Reboot Pi</button>
+                </div>
+                <div id="updateStatus"></div>
+            </div>
         </div>
-        
-        <div class="card">
-            <h2>🔄 Xoay Màn Hình</h2>
-            <div class="form-group">
-                <select id="rotation">
-                    <option value="normal">Không xoay (0°)</option>
-                    <option value="left">Xoay trái (90°)</option>
-                    <option value="inverted">Xoay ngược (180°)</option>
-                    <option value="right">Xoay phải (270°)</option>
-                </select>
-            </div>
-            <button class="btn btn-primary" onclick="saveRotation()">💾 Lưu</button>
-            <div id="rotationStatus"></div>
-        </div>
-        
-        <div class="card">
-            <h2>🖥️ Chế Độ Màn Hình</h2>
-            <div class="form-group">
-                <label>Kích thước cửa sổ:</label>
-                <select id="windowMode">
-                    <option value="screen_100">Toàn màn hình (100%)</option>
-                    <option value="screen_75">Cửa sổ 75%</option>
-                    <option value="fullhd">Full HD (1920x1080)</option>
-                    <option value="hd">HD (1280x720)</option>
-                    <option value="vertical_916">Dọc 9:16</option>
-                    <option value="default">Tự động</option>
-                </select>
-            </div>
-            <button class="btn btn-primary" onclick="saveWindowMode()">💾 Lưu</button>
-            <div id="windowModeStatus"></div>
-        </div>
-        
-        <div class="card">
-            <h2>📺 YouTube URL</h2>
-            <div class="form-group">
-                <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
-            </div>
-            <button class="btn btn-primary" onclick="saveYoutube()">💾 Lưu YouTube</button>
-            <div id="youtubeStatus"></div>
-        </div>
-        
-        <div class="card">
-            <h2>🎤 Microphone</h2>
-            <div class="form-group">
-                <label>Thiết bị Mic:</label>
-                <select id="micDevice"></select>
-            </div>
-            <div class="form-group">
-                <label>Âm lượng: <span id="micVolumeValue">100</span>%</label>
-                <input type="range" id="micVolume" min="0" max="100" value="100" 
-                    oninput="document.getElementById('micVolumeValue').textContent=this.value"
-                    style="width:100%; accent-color:#667eea;">
-            </div>
-            <div class="form-group" style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 10px;">
-                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                    <input type="checkbox" id="i2sEnabled" onchange="toggleI2S()" style="width: 20px; height: 20px;">
-                    <span>🎙️ Sử dụng I2S Microphone (INMP441)</span>
-                </label>
-                <div id="i2sOptions" style="margin-top: 10px; display: none;">
-                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-left: 30px;">
-                        <input type="checkbox" id="i2sStereo" onchange="toggleBeamforming()" style="width: 18px; height: 18px;">
-                        <span>Stereo (2 mic L+R)</span>
+
+        <!-- WIFI TAB -->
+        <div id="tab-wifi" class="tab-content">
+            <div class="card">
+                <h2>📶 Quản lý WiFi</h2>
+                <div class="form-group">
+                    <label>Mạng hiện tại:</label>
+                    <div id="currentWifi" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">Loading...</div>
+                </div>
+                <div class="form-group">
+                    <label>Mạng khả dụng:</label>
+                    <select id="wifiList" style="margin-bottom: 10px;"></select>
+                    <input type="password" id="wifiPassword" placeholder="Mật khẩu WiFi">
+                </div>
+                <button class="btn btn-primary" onclick="connectWifi()" style="margin-bottom: 5px;">📶 Kết nối</button>
+                <button class="btn btn-success" onclick="scanWifi()">🔄 Quét lại</button>
+                <div id="wifiStatus"></div>
+                
+                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #444;">
+                    <label style="display: flex; align-items: center; justify-content: space-between;">
+                        <span>📁 Mạng đã lưu:</span>
+                        <button onclick="loadSavedNetworks()" style="padding: 5px 10px; font-size: 12px; background: rgba(255,255,255,0.1); border: 1px solid #666; border-radius: 5px; color: #fff; cursor: pointer;">↻ Refresh</button>
                     </label>
-                    <div id="beamformingOptions" style="margin-top: 15px; margin-left: 30px; display: none;">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="beamformingEnabled" style="width: 18px; height: 18px;">
-                            <span>🎯 Beamforming (khử nhiễu loa)</span>
-                        </label>
-                        <div style="margin-top: 10px;">
-                            <label style="font-size: 13px; color: #94a3b8;">Khoảng cách 2 mic (cm):</label>
-                            <input type="number" id="micDistance" value="8" min="2" max="20" step="0.5"
-                                style="width: 70px; padding: 5px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff;">
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <label style="font-size: 13px; color: #94a3b8;">Góc loa (°): 0=trước, 180=sau</label>
-                            <input type="number" id="speakerAngle" value="180" min="0" max="360" step="15"
-                                style="width: 70px; padding: 5px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 5px; color: #fff;">
-                        </div>
-                    </div>
-                    <div style="font-size: 11px; color: #94a3b8; margin-top: 10px; margin-left: 30px; font-family: monospace; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px;">
-                        📌 <b>INMP441 → Raspberry Pi:</b><br>
-                        VDD → 3.3V (Pin 1) | GND → GND (Pin 6)<br>
-                        SD → GPIO20 (Pin 38) | WS → GPIO19 (Pin 35) | SCK → GPIO18 (Pin 12)<br>
-                        L/R → GND (Left) hoặc 3.3V (Right cho mic 2)
-                    </div>
-                </div>
-            </div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Mic</button>
-                <button class="btn btn-success" onclick="saveAndRestartAudio()" 
-                    style="background: linear-gradient(135deg, #10b981, #059669);">
-                    🔄 Lưu & Áp dụng ngay
-                </button>
-            </div>
-            <div id="micStatus"></div>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 8px;">
-                💡 "Lưu Mic" = Lưu config, cần restart app để áp dụng I2S/Beamforming<br>
-                💡 "Lưu & Áp dụng ngay" = Lưu + Restart Audio System ngay lập tức
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2>🔊 Loa / Speaker</h2>
-            <div class="form-group">
-                <label>Thiết bị Loa:</label>
-                <select id="speakerDevice"></select>
-            </div>
-            <div class="form-group">
-                <label>Âm lượng: <span id="speakerVolumeValue">80</span>%</label>
-                <input type="range" id="speakerVolume" min="0" max="100" value="80"
-                    oninput="document.getElementById('speakerVolumeValue').textContent=this.value"
-                    style="width:100%; accent-color:#667eea;">
-            </div>
-            <div class="form-group" style="margin-top: 15px;">
-                <label style="display: flex; align-items: center; cursor: pointer;">
-                    <input type="checkbox" id="hdmiAudio" style="width: 20px; height: 20px; margin-right: 10px;">
-                    📺 Xuất âm thanh qua HDMI (thay vì 3.5mm jack)
-                </label>
-                <div style="font-size: 11px; color: #94a3b8; margin-top: 5px; margin-left: 30px;">
-                    Khi bật: Audio → HDMI → TV/Monitor<br>
-                    Khi tắt: Audio → 3.5mm Headphone jack
-                </div>
-            </div>
-            <button class="btn btn-primary" onclick="saveAudio()">💾 Lưu Loa</button>
-            <div id="speakerStatus"></div>
-        </div>
-        
-        <div class="card">
-            <h2>🎙️ Từ Đánh Thức (Wake Word)</h2>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="wakeWordEnabled" style="width:auto; margin-right:8px;">
-                    Bật Wake Word
-                </label>
-            </div>
-            <div class="form-group">
-                <label>Ngưỡng phát hiện: <span id="sensitivityValue">0.25</span></label>
-                <input type="range" id="wakeWordSensitivity" min="0.1" max="0.5" step="0.05" value="0.25"
-                    oninput="document.getElementById('sensitivityValue').textContent=this.value"
-                    style="width:100%; accent-color:#667eea;">
-                <small style="color: #888;">Thấp = nhạy hơn, Cao = chính xác hơn</small>
-            </div>
-            <div class="form-group">
-                <label>Từ khóa:</label>
-                <div style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 13px;">
-                    Mặc định: 小智 (Xiaozhi)<br>
-                    <small style="color: #888;">Chỉnh sửa: models/keywords.txt</small>
-                </div>
-            </div>
-            <button class="btn btn-primary" onclick="saveWakeWord()">💾 Lưu</button>
-            <div id="wakeWordStatus"></div>
-        </div>
-        
-        <div class="card">
-            <h2>📶 WiFi</h2>
-            <div class="form-group">
-                <label>Mạng hiện tại:</label>
-                <div id="currentWifi" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-                    Loading...
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Mạng khả dụng:</label>
-                <select id="wifiList" style="margin-bottom: 10px;"></select>
-                <input type="password" id="wifiPassword" placeholder="Mật khẩu WiFi">
-            </div>
-            <button class="btn btn-primary" onclick="connectWifi()" style="margin-bottom: 10px;">📶 Kết nối</button>
-            <button class="btn btn-success" onclick="scanWifi()">🔄 Quét lại</button>
-            <div id="wifiStatus"></div>
-            
-            <!-- Saved Networks Section -->
-            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #444;">
-                <label style="display: flex; align-items: center; justify-content: space-between;">
-                    <span>📁 Mạng đã lưu:</span>
-                    <button onclick="loadSavedNetworks()" style="padding: 5px 10px; font-size: 12px; background: rgba(255,255,255,0.1); border: 1px solid #666; border-radius: 5px; color: #fff; cursor: pointer;">↻ Refresh</button>
-                </label>
-                <div id="savedNetworks" style="margin-top: 10px;">
-                    <div style="color: #888; font-size: 13px;">Đang tải...</div>
+                    <div id="savedNetworks" style="margin-top: 10px;"></div>
                 </div>
             </div>
         </div>
         
-        <div class="card">
-            <h2>🌐 Hệ Thống</h2>
-            <div class="form-group">
-                <label>Ngôn ngữ:</label>
-                <select id="language">
-                    <option value="vi">Tiếng Việt</option>
-                    <option value="en">English</option>
-                    <option value="zh">中文</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>OTA Server URL:</label>
-                <input type="text" id="otaUrl" placeholder="https://api.xiaozhi.me">
-            </div>
-            <div class="form-group">
-                <label>WebSocket URL:</label>
-                <input type="text" id="wsUrl" placeholder="wss://api.xiaozhi.me/websocket">
-            </div>
-            <div class="form-group">
-                <label>WebSocket Token:</label>
-                <input type="text" id="wsToken" placeholder="Token từ server">
-            </div>
-            <div class="form-group">
-                <label>Thông tin:</label>
-                <div id="systemInfo" style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 13px;">
-                    Loading...
-                </div>
-            </div>
-            <button class="btn btn-primary" onclick="saveSystem()" style="margin-bottom: 10px;">💾 Lưu cấu hình</button>
-            <button class="btn btn-success" onclick="checkUpdate()">🔄 Kiểm tra cập nhật</button>
-            <div id="systemStatus"></div>
-        </div>
-        
-        <div class="card">
-            <h2>🧪 Test Thiết Bị</h2>
-            <div id="audioConfigInfo" style="background: #2d3748; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-family: monospace; font-size: 12px; color: #a0aec0;"></div>
-            <div class="form-group">
-                <label>🎤 Test Microphone:</label>
-                <button class="btn btn-primary" onclick="testMic()" id="testMicBtn" style="margin-bottom: 10px;">🎤 Ghi âm 3s</button>
-                <div id="micStatus"></div>
-            </div>
-            <div class="form-group">
-                <label>🔊 Test Loa:</label>
-                <button class="btn btn-primary" onclick="testSpeaker()" style="margin-bottom: 10px;">🔊 Phát âm thanh</button>
-                <div id="speakerStatus"></div>
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2>💬 Test Chat AI</h2>
-            <div class="form-group">
-                <input type="text" id="chatInput" placeholder="Nhập tin nhắn test..." style="margin-bottom: 10px;">
-                <button class="btn btn-primary" onclick="testChat()">📤 Gửi</button>
-            </div>
-            <div id="chatResponse" style="padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px; min-height: 80px; margin-top: 10px;">
-                <span style="color: #888;">Nhập tin nhắn và nhấn Gửi để test AI...</span>
-            </div>
-            <div id="chatStatus"></div>
-        </div>
-        
-        <div class="card">
-            <h2>⚙️ Điều khiển</h2>
-            <button class="btn btn-primary" onclick="updateAndRestart()" style="margin-bottom: 10px;">🔄 Cập nhật & Restart</button>
-            <button class="btn btn-success" onclick="restartApp()" style="margin-bottom: 10px;">🔄 Restart App</button>
-            <button class="btn btn-danger" onclick="rebootPi()">🔌 Reboot Pi</button>
-            <div id="updateStatus" style="margin-top: 10px;"></div>
-        </div>
+    </div> <!-- Close Container -->
     </div>
     
     <script>
+        // Tab switching
+        function openTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+                if (b.textContent.includes(tabName === 'bg' ? 'Background' : 
+                                         tabName === 'display' ? 'Hiển thị' :
+                                         tabName === 'wifi' ? 'WiFi' : 'Khác')) {
+                    b.classList.add('active');
+                }
+            });
+            document.getElementById('tab-' + tabName).classList.add('active');
+            
+            // Highlight current tab button explicitly
+            const btns = document.querySelectorAll('.tab-btn');
+            if(tabName == 'bg') btns[0].classList.add('active');
+            if(tabName == 'display') btns[1].classList.add('active');
+            if(tabName == 'wifi') btns[2].classList.add('active');
+            if(tabName == 'other') btns[3].classList.add('active');
+        }
+
+        function toggleBgMode() {
+            const mode = document.getElementById('bgMode').value;
+            document.getElementById('videoSection').style.display = mode === 'video' ? 'block' : 'none';
+            document.getElementById('slideSection').style.display = mode === 'slide' ? 'block' : 'none';
+            if (mode === 'slide') loadGallery();
+        }
+
         async function loadStatus() {
             try {
                 const resp = await fetch('/api/status');
                 const data = await resp.json();
                 document.getElementById('ipAddress').textContent = data.ip || 'Unknown';
                 document.getElementById('uptime').textContent = data.uptime || 'Unknown';
+                
+                // Video & BG Config
                 document.getElementById('videoPath').value = data.video_path || '';
+                
+                // Check bg mode from display config or default
+                // Assuming API status returns full config or specific fields
+                // We might need to update python API to send this. For now assume it sends 'display' object inside data
+                if (data.display) {
+                    document.getElementById('bgMode').value = data.display.background_mode || 'video';
+                    document.getElementById('slideInterval').value = (data.display.slide_interval || 5000) / 1000;
+                }
+                toggleBgMode();
+
                 document.getElementById('rotation').value = data.rotation || 'normal';
                 document.getElementById('youtubeUrl').value = data.youtube_url || '';
                 
@@ -504,19 +496,118 @@ DASHBOARD_HTML = """
             }
         }
         
-        async function saveVideo() {
+        async function saveVideoConfig() {
             const path = document.getElementById('videoPath').value;
             try {
                 const resp = await fetch('/api/video', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path})
+                    body: JSON.stringify({path, mode: 'video'}) 
                 });
                 const data = await resp.json();
                 showStatus('videoStatus', data.success ? 'success' : 'error', data.message);
             } catch (e) {
                 showStatus('videoStatus', 'error', 'Lỗi kết nối');
             }
+        }
+
+        // Slideshow Functions
+        let selectedImages = new Set();
+
+        async function loadGallery() {
+            selectedImages.clear();
+            const gallery = document.getElementById('imageGallery');
+            gallery.innerHTML = 'Loading...';
+            try {
+                const resp = await fetch('/api/images/list');
+                const images = await resp.json();
+                
+                gallery.innerHTML = '';
+                if (images.length === 0) {
+                    gallery.innerHTML = '<div style="grid-column: 1/-1; color: #888; text-align: center;">Chưa có ảnh nào. Hãy upload ảnh mới.</div>';
+                    return;
+                }
+
+                images.forEach(img => {
+                    const div = document.createElement('div');
+                    div.className = 'gallery-item';
+                    div.onclick = () => toggleImageSelection(div, img.url);
+                    div.innerHTML = `
+                        <img src="${img.url}">
+                        <div class="check-icon">✓</div>
+                    `;
+                    gallery.appendChild(div);
+                });
+                
+                // Load current config to re-select images? 
+                // Currently API doesn't return selected list easily without extra call, 
+                // but we can assume user selects new set or we add selected_images to /api/status.
+            } catch (e) {
+                gallery.innerHTML = 'Lỗi tải ảnh: ' + e.message;
+            }
+        }
+
+        function toggleImageSelection(el, url) {
+            if (selectedImages.has(url)) {
+                selectedImages.delete(url);
+                el.classList.remove('selected');
+            } else {
+                selectedImages.add(url);
+                el.classList.add('selected');
+            }
+        }
+
+        async function saveSlideConfig() {
+            if (selectedImages.size === 0) {
+                alert('Vui lòng chọn ít nhất 1 ảnh!');
+                return;
+            }
+            const interval = document.getElementById('slideInterval').value;
+            
+            try {
+                const resp = await fetch('/api/slide/set', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        mode: 'slide',
+                        urls: Array.from(selectedImages),
+                        interval: interval
+                    })
+                });
+                const data = await resp.json();
+                alert(data.message);
+            } catch(e) {
+                alert('Lỗi lưu cấu hình: ' + e.message);
+            }
+        }
+
+        async function uploadImage() {
+            const fileInput = document.getElementById('imageFile');
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('imageUploadStatus');
+            status.textContent = 'Đang upload...';
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const resp = await fetch('/api/upload_image', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    status.textContent = 'Upload thành công!';
+                    loadGallery(); // Reload gallery
+                } else {
+                    status.textContent = 'Lỗi: ' + data.message;
+                }
+            } catch(e) {
+                status.textContent = 'Lỗi upload: ' + e.message;
+            }
+            fileInput.value = '';
         }
         
         async function uploadVideo() {
@@ -1124,6 +1215,9 @@ class WebSettingsServer:
     def _setup_routes(self):
         """Thiết lập routes."""
         self.app.router.add_get('/', self._handle_index)
+        # Static files
+        self.app.router.add_static('/assets', get_project_root() / 'assets')
+        
         self.app.router.add_get('/api/status', self._handle_status)
         self.app.router.add_post('/api/video', self._handle_video)
         self.app.router.add_post('/api/upload', self._handle_upload)
@@ -1134,6 +1228,10 @@ class WebSettingsServer:
         self.app.router.add_get('/api/audio/devices', self._handle_audio_devices)
         self.app.router.add_post('/api/audio', self._handle_audio)
         self.app.router.add_post('/api/audio/restart', self._handle_audio_restart)
+        # Slideshow
+        self.app.router.add_post('/api/upload_image', self._handle_upload_image)
+        self.app.router.add_get('/api/images/list', self._handle_list_images)
+        self.app.router.add_post('/api/slide/set', self._handle_slide_set)
         # Wake Word
         self.app.router.add_get('/api/wakeword', self._handle_wakeword_get)
         self.app.router.add_post('/api/wakeword', self._handle_wakeword_post)
@@ -1190,6 +1288,10 @@ class WebSettingsServer:
             "video_path": video_cfg.get("VIDEO_FILE_PATH", ""),
             "youtube_url": video_cfg.get("YOUTUBE_URL", ""),
             "rotation": rotation,
+            "display": {
+                "background_mode": self.config.get_config("DISPLAY.BACKGROUND_MODE", "video"),
+                "slide_interval": self.config.get_config("DISPLAY.SLIDE_INTERVAL", 5000)
+            }
         })
     
     async def _handle_video(self, request):
@@ -1199,7 +1301,9 @@ class WebSettingsServer:
             path = data.get("path", "")
             
             logger.info(f"Saving video path: {path}")
-            logger.info(f"Config file: {self.config.config_file}")
+            
+            # Set mode to video
+            self.config.update_config("DISPLAY.BACKGROUND_MODE", "video")
             
             result1 = self.config.update_config("VIDEO_BACKGROUND.ENABLED", bool(path))
             result2 = self.config.update_config("VIDEO_BACKGROUND.SOURCE_TYPE", "file")

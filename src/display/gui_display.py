@@ -223,26 +223,39 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
     # Video (camera / mp4) trong GUI
     # =========================================================================
     def _start_video_from_config(self) -> None:
-        """Đọc cấu hình VIDEO_BACKGROUND để bật video nền trong GUI.
-
-        Sử dụng native QML Video player (hardware accelerated).
-        Hỗ trợ: file local, WebP animation, YouTube URL.
-        
-        LƯU Ý: Video MP4 sẽ bị tắt nếu HDMI audio enabled vì gstreamer
-        chiếm HDMI device, không cho aplay truy cập.
-        """
+        """Đọc cấu hình DISPLAY/VIDEO để set background (Video hoặc Slideshow)."""
         from src.utils.config_manager import ConfigManager
         from src.utils.resource_finder import get_project_root
 
         cfg = ConfigManager.get_instance()
         
+        # 1. Check Background Mode
+        bg_mode = cfg.get_config("DISPLAY.BACKGROUND_MODE", "video")
+        
+        if bg_mode == 'slide':
+            images = cfg.get_config("DISPLAY.SLIDE_IMAGES", [])
+            interval = cfg.get_config("DISPLAY.SLIDE_INTERVAL", 5000)
+            
+            # Resolve paths
+            abs_images = []
+            for img in images:
+                if img:
+                    if not os.path.isabs(img):
+                        abs_images.append(str(get_project_root() / img))
+                    else:
+                        abs_images.append(img)
+            
+            self.logger.info(f"[BG] Mode: Slide, Images: {len(abs_images)}")
+            self.set_slideshow(abs_images, interval)
+            return
+
+        # 2. Video Mode Logic
         # Kiểm tra HDMI audio có enabled không
         audio_cfg = cfg.get_config("AUDIO_DEVICES", {}) or {}
         hdmi_audio_enabled = audio_cfg.get("hdmi_audio", False)
         
-        # Thử đọc config mới VIDEO_BACKGROUND
+        # Thử đọc config VIDEO_BACKGROUND
         video_cfg = cfg.get_config("VIDEO_BACKGROUND", {}) or {}
-        self.logger.info(f"[VIDEO] Config: {video_cfg}")
         
         # Fallback: đọc CAMERA config cũ nếu VIDEO_BACKGROUND không có
         if not video_cfg or not video_cfg.get("ENABLED"):
@@ -254,18 +267,13 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
                     "VIDEO_FILE_PATH": camera_cfg.get("VIDEO_FILE_PATH", ""),
                     "VIDEO_LOOP": camera_cfg.get("VIDEO_LOOP", True)
                 }
-                self.logger.info(f"[VIDEO] Fallback từ CAMERA config: {video_cfg}")
         
-        # HDMI audio và video có thể cùng hoạt động nhờ GST_AUDIO_SINK=fakesink
-        # được set ở main.py trước khi gstreamer load
         if hdmi_audio_enabled:
             self.logger.info("[VIDEO] HDMI audio enabled - Video vẫn chạy (gstreamer dùng fakesink cho audio)")
         
-        # Kiểm tra có bật video không
         if not video_cfg.get("ENABLED"):
-            self.logger.info("[VIDEO] DISABLED - clearing video paths")
-            self.display_model.update_video_frame_url("")
-            self.display_model.update_video_file_path("")
+            self.logger.info("[VIDEO] DISABLED")
+            self.set_video_background("")
             return
 
         source_type = video_cfg.get("SOURCE_TYPE", "file")
@@ -277,8 +285,7 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
                 stream_url = self._get_youtube_stream_url(youtube_url)
                 if stream_url:
                     self.logger.info(f"Playing YouTube stream: {youtube_url}")
-                    self.display_model.update_video_frame_url("")
-                    self.display_model.update_video_file_path(stream_url)
+                    self.set_video_background(stream_url)
                     return
                 else:
                     self.logger.warning("Không lấy được YouTube stream URL")
@@ -289,24 +296,19 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         
         if not file_path:
             self.logger.warning("VIDEO_BACKGROUND enabled nhưng VIDEO_FILE_PATH trống")
-            self.display_model.update_video_frame_url("")
-            self.display_model.update_video_file_path("")
+            self.set_video_background("")
             return
         
-        # Chuyển đổi relative path sang absolute
         if not os.path.isabs(file_path):
             file_path = str(get_project_root() / file_path)
         
         if not Path(file_path).exists():
             self.logger.warning(f"Video file không tồn tại: {file_path}")
-            self.display_model.update_video_frame_url("")
-            self.display_model.update_video_file_path("")
+            self.set_video_background("")
             return
 
-        # Dùng native video player - mượt mà, có hardware acceleration
         self.logger.info(f"Sử dụng native video player cho: {file_path}")
-        self.display_model.update_video_frame_url("")  # Tắt Image-based (không dùng)
-        self.display_model.update_video_file_path(file_path)  # Bật native Video
+        self.set_video_background(file_path)
 
     def _get_youtube_stream_url(self, youtube_url: str) -> str:
         """Lấy stream URL trực tiếp từ YouTube bằng yt-dlp."""
@@ -994,6 +996,8 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         self._slide_timer.setInterval(interval)
         
         self.display_model.backgroundMode = "slide"
+        # Stop any playing video by clearing source
+        self.display_model.update_video_file_path("")
         
         # Show first image immediately
         self._next_slide()
