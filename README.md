@@ -76,6 +76,7 @@ cd ~/.digits && bash auto_update.sh --install
 
 ---
 
+
 ## 📱 Luồng Hoạt Động
 
 ```
@@ -83,26 +84,27 @@ Boot Pi → Smart C AI khởi động
               ↓
         Kiểm tra WiFi
         /           \
-   Không có        Có WiFi
+   KHÔNG CÓ        CÓ MẠNG SẴN
       ↓               ↓
- Bật Hotspot      Hiển thị IP
-"SmartC-Setup"    + QR code (15s)
+ Bật Hotspot      Start App NGAY LẬP TỨC
+"SmartC-Setup"    + Hiển thị IP Overlay
+IP: 192.168.4.1   (Song song, không chặn app)
       ↓               ↓
-Hiển thị overlay  Ẩn overlay
-(chờ user config)     ↓
-      ↓           Chạy App Chính
- Cấu hình WiFi    (Chat Bot)
- qua web
+Chờ User Config   Sau 10 giây
+(App tạm dừng)        ↓
+      ↓           Tự động ẩn Overlay
+Kết nối Web UI        ↓
+192.168.4.1:8080  Giao diện sạch
       ↓
 Kết nối thành công
       ↓
-Hiển thị IP mới
-+ QR code (15s)
+Start App NGAY LẬP TỨC
++ Hiển thị IP Mới
+(Song song)
       ↓
-    Ẩn overlay
+Sau 15 giây
       ↓
-  Chạy App Chính
-   (Chat Bot)
+Tự động ẩn Overlay
 ```
 
 ### 📶 Network Overlay trên GUI
