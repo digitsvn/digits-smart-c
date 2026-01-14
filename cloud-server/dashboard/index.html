@@ -932,8 +932,39 @@
         }
 
         // ========== Config Modal ==========
-        function openConfig(deviceId) {
+        async function openConfig(deviceId) {
             document.getElementById('configModal').classList.add('active');
+
+            try {
+                // Fetch latest device info to get system config
+                const resp = await fetch(`${API_BASE}/api/devices`);
+                const devices = await resp.json();
+                const device = devices.find(d => d.id === deviceId);
+
+                if (device) {
+                    selectedDevice = device; // Set global selectedDevice
+
+                    // Populate System Tab
+                    if (device.system) {
+                        const sys = device.system;
+                        console.log("Loading System Config:", sys);
+
+                        if (sys.language) document.getElementById('language').value = sys.language.includes('vi') ? 'vi' : (sys.language.includes('zh') ? 'zh' : 'en');
+
+                        // OTA URL
+                        if (sys.ota_url) document.getElementById('otaUrl').value = sys.ota_url;
+
+                        // WebSocket/Cloud URL
+                        // Prefer cloud_url (Management) over ws_url (Voice)
+                        const cloudUrl = sys.cloud_url || sys.ws_url || '';
+                        if (cloudUrl) document.getElementById('wsUrl').value = cloudUrl;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load device info:", e);
+                showToast("Không thể tải thông tin thiết bị", "error");
+            }
+
             // Load initial data
             scanWifi();
             loadGallery();

@@ -338,6 +338,19 @@ class CloudAgent:
                     info['cpu_temp'] = round(int(f.read().strip()) / 1000, 1)
         except Exception:
             pass
+            
+        # Network Config Info (For Cloud Dashboard)
+        try:
+            from src.utils.config_manager import ConfigManager
+            config = ConfigManager.get_instance()
+            info['language'] = config.get_config("SYSTEM_OPTIONS.LANGUAGE", "vi-VN")
+            info['ota_url'] = config.get_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", "")
+            # Voice WebSocket URL
+            info['ws_url'] = config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
+            # Cloud Management URL
+            info['cloud_url'] = config.get_config("SYSTEM_OPTIONS.NETWORK.CLOUD_MANAGEMENT_URL", "")
+        except Exception:
+            pass
         
         return info
     
