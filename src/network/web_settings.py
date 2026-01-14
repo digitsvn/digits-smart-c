@@ -153,7 +153,7 @@ DASHBOARD_HTML = """
         /* Gallery Styles */
         .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 300px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; }
         .gallery-item { position: relative; aspect-ratio: 16/9; background: #000; border-radius: 4px; overflow: hidden; cursor: pointer; }
-        .gallery-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+        .gallery-item img { width: 100%; height: 100%; object-fit: contain; opacity: 0.7; }
         .gallery-item.selected { border: 2px solid #38ef7d; }
         .gallery-item.selected img { opacity: 1; }
         .check-icon { position: absolute; top: 5px; right: 5px; color: #38ef7d; display: none; background: rgba(0,0,0,0.5); border-radius: 50%; padding: 2px; }
@@ -1184,13 +1184,31 @@ DASHBOARD_HTML = """
         }
         
         async function checkUpdate() {
-            showStatus('systemStatus', 'success', 'Đang kiểm tra...');
+            const btn = document.querySelector('button[onclick="checkUpdate()"]');
+            const originalText = btn.innerText;
+            btn.disabled = true;
+            btn.innerText = "⏳ Đang kiểm tra...";
+            showStatus('systemStatus', 'success', 'Đang kết nối GitHub...');
+            
             try {
                 const resp = await fetch('/api/system/update', {method: 'POST'});
                 const data = await resp.json();
+                
                 showStatus('systemStatus', data.success ? 'success' : 'error', data.message);
+                
+                if (data.success && data.message.includes("Đã cập nhật")) {
+                    if (confirm(data.message + "\nBạn có muốn Restart App ngay bây giờ?")) {
+                        restartApp();
+                    }
+                } else {
+                    alert(data.message);
+                }
             } catch (e) {
-                showStatus('systemStatus', 'error', 'Kiểm tra thất bại');
+                showStatus('systemStatus', 'error', 'Lỗi kết nối: ' + e.message);
+                alert('Lỗi kết nối tới Server!');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = originalText;
             }
         }
         
