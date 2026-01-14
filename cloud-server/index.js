@@ -600,6 +600,11 @@ app.post('/api/devices/:id/test/speaker', (req, res) => {
     res.json({ message: 'Speaker test started' });
 });
 
+// Placeholder for images API to fix Dashboard error
+app.get('/api/images', (req, res) => {
+    res.json({ images: [] });
+});
+
 // Get device health
 app.get('/api/devices/:id/health', (req, res) => {
     const device = db.getDevice(req.params.id);

@@ -344,7 +344,8 @@ class CloudAgent:
             from src.utils.config_manager import ConfigManager
             config = ConfigManager.get_instance()
             info['language'] = config.get_config("SYSTEM_OPTIONS.LANGUAGE", "vi-VN")
-            info['ota_url'] = config.get_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", "")
+            # Default OTA URL if missing
+            info['ota_url'] = config.get_config("SYSTEM_OPTIONS.NETWORK.OTA_VERSION_URL", "") or "https://vimate.vn/api/v1/ota"
             # Voice WebSocket URL
             info['ws_url'] = config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
             # Cloud Management URL
