@@ -594,9 +594,9 @@ class Application:
             # Priority: Dedicated Cloud Management URL -> Default 0nline.vn
             cloud_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.CLOUD_MANAGEMENT_URL", "")
             
-            # Default to 0nline.vn if not configured (Hidden management channel)
+            # Default to direct IP to avoid Cloudflare HTTPS redirects
             if not cloud_url:
-                cloud_url = "ws://0nline.vn/ws/device"
+                cloud_url = "ws://116.118.2.38:3000/ws/device"
                 
             # Do NOT fallback to WEBSOCKET_URL (vimate.vn) because protocols differ
             
