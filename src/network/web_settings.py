@@ -532,7 +532,8 @@ DASHBOARD_HTML = """
                 images.forEach(img => {
                     const div = document.createElement('div');
                     div.className = 'gallery-item';
-                    const safeName = img.name.replace(/'/g, "\\\\'");
+                    // Use encodeURIComponent for 100% safety against quotes/special chars
+                    const safeName = encodeURIComponent(img.name); 
                     div.innerHTML = `
                         <img src="${img.url}" onclick="toggleImageSelection(this.parentElement, '${img.url}')">
                         <div class="check-icon">✓</div>
@@ -559,9 +560,10 @@ DASHBOARD_HTML = """
             }
         }
 
-        async function deleteImage(filename, event) {
+        async function deleteImage(encodedFilename, event) {
             event.stopPropagation();
-            if (!confirm('Xóa ảnh này?')) return;
+            const filename = decodeURIComponent(encodedFilename);
+            if (!confirm('Xóa ảnh "' + filename + '"?')) return;
             
             try {
                 const resp = await fetch('/api/images/delete', {
