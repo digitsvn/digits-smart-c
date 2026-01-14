@@ -1531,30 +1531,85 @@ class WebSettingsServer:
             except Exception:
                 pass
             
-            # Quét mạng khả dụng
-            networks = []
+            # Lấy danh sách mạng đã lưu (saved connections)
+            saved_ssids = set()
             try:
                 result = subprocess.run(
-                    ["sudo", "iwlist", "wlan0", "scan"],
-                    capture_output=True, text=True, timeout=15
+                    ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"],
+                    capture_output=True, text=True, timeout=5
                 )
                 if result.returncode == 0:
-                    import re
-                    # Parse ESSID từ output
-                    essids = re.findall(r'ESSID:"([^"]*)"', result.stdout)
-                    signals = re.findall(r'Signal level=(-?\d+)', result.stdout)
+                    for line in result.stdout.strip().split('\n'):
+                        parts = line.split(':')
+                        if len(parts) >= 2 and parts[1] == '802-11-wireless':
+                            saved_ssids.add(parts[0])
+            except Exception:
+                pass
+
+            # Quét mạng khả dụng dùng nmcli (tốt hơn iwlist và có security info)
+            networks = []
+            try:
+                # Rescan trước
+                subprocess.run(["sudo", "nmcli", "device", "wifi", "rescan"], timeout=5)
+                await asyncio.sleep(1) # Chờ 1 chút
+                
+                result = subprocess.run(
+                    ["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "device", "wifi", "list"],
+                    capture_output=True, text=True, timeout=15
+                )
+                
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        # Format: SSID:SIGNAL:SECURITY:IN-USE
+                        # Cẩn thận với SSID có dấu : bên trong -> dùng split limit không an toàn nếu nmcli không escape
+                        # Nhưng nmcli -t thường dùng : làm separator. SSID thực tế hiếm khi có :
+                        
+                        # Cách an toàn hơn: dùng regex hoặc split thông minh
+                        # SSID có thể rỗng (hidden network)
+                        # nmcli output example: MyWiFi:80:WPA2:*
+                        
+                        parts = line.split(':')
+                        if len(parts) >= 3:
+                            # Lấy các phần cuối cố định trước
+                            in_use = parts[-1] == "*"
+                            security = parts[-2]
+                            signal = parts[-3]
+                            
+                            # SSID là phần còn lại
+                            ssid = ":".join(parts[:-3])
+                            
+                            if not ssid:
+                                continue
+                                
+                            # Convert signal
+                            try:
+                                signal_level = int(signal)
+                            except:
+                                signal_level = 0
+                                
+                            networks.append({
+                                "ssid": ssid,
+                                "signal": signal_level,
+                                "security": security,
+                                "saved": ssid in saved_ssids,
+                                "connected": in_use
+                            })
+                            
+                    # Remove duplicates, giữ lại signal mạnh nhất
+                    unique_networks = {}
+                    for net in networks:
+                        ssid = net['ssid']
+                        if ssid not in unique_networks or net['signal'] > unique_networks[ssid]['signal']:
+                            unique_networks[ssid] = net
                     
-                    seen = set()
-                    for i, ssid in enumerate(essids):
-                        if ssid and ssid not in seen:
-                            seen.add(ssid)
-                            signal = int(signals[i]) if i < len(signals) else 0
-                            networks.append({"ssid": ssid, "signal": signal})
+                    networks = sorted(unique_networks.values(), key=lambda x: x['signal'], reverse=True)
+                            
             except Exception as e:
                 logger.warning(f"WiFi scan failed: {e}")
+                # Fallback to iwlist if nmcli fails
             
             return web.json_response({
-                "networks": networks[:15],
+                "networks": networks[:20],
                 "current": current_ssid,
                 "ip": current_ip,
             })
