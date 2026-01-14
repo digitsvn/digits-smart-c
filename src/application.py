@@ -119,56 +119,85 @@ class Application:
             await self.plugins.start_all()
             
             # Check network và khởi động Web Settings/Hotspot
+            # Quy trình: 
+            # - Có mạng: Hiển thị IP 15s → Ẩn overlay → Chạy app
+            # - Không có mạng: Bật hotspot → CHỜVIÊN config → Hiển thị IP 15s → Ẩn overlay → Chạy app
             try:
                 from src.network.network_status import is_connected, start_hotspot_if_no_network, get_current_ip, generate_qr_code
                 from src.network.web_settings import start_web_settings
                 from src.utils.resource_finder import get_project_root
                 
                 if is_connected():
-                    # Đã có mạng -> Start Web Settings Dashboard
+                    # ========== CÓ MẠNG ==========
                     await start_web_settings(port=8080)
                     ip = get_current_ip()
                     logger.info(f"🌐 Web Settings: http://{ip}:8080")
                     
-                    # Tạo QR code cho URL settings
+                    # Tạo QR code
                     qr_path = get_project_root() / "assets" / "qr_settings.png"
                     url = f"http://{ip}:8080"
-                    if generate_qr_code(url, qr_path):
-                        qr_path_str = str(qr_path)
-                    else:
-                        qr_path_str = ""
+                    qr_path_str = str(qr_path) if generate_qr_code(url, qr_path) else ""
                     
-                    # Update GUI với thông tin mạng
+                    # Hiển thị IP overlay 15 giây
                     await self._update_gui_network_info(ip, "connected", qr_path_str)
+                    logger.info(f"Hiển thị IP overlay 15 giây...")
+                    await asyncio.sleep(15)
+                    
+                    # Ẩn overlay
+                    await self._update_gui_network_info("", "hidden", "")
+                    logger.info("Đã ẩn network overlay")
+                    
                 else:
-                    # Chưa có mạng -> Bật Hotspot + Start Web Settings
-                    logger.info("Không có mạng, đang bật hotspot...")
+                    # ========== KHÔNG CÓ MẠNG ==========
+                    logger.info("Không có mạng, đang bật hotspot và chờ cấu hình...")
                     await start_hotspot_if_no_network()
-                    # Port 8080 thay vì 80 (port < 1024 cần quyền root)
                     await start_web_settings(port=8080)
                     
                     hotspot_ip = "192.168.4.1"
-                    logger.info("📶 Hotspot: SmartC-Setup | Pass: smartc123")
+                    logger.info(f"📶 Hotspot: SmartC-Setup | Pass: smartc123")
                     logger.info(f"🌐 Cấu hình: http://{hotspot_ip}:8080")
                     
-                    # Tạo QR code cho URL hotspot
+                    # Tạo QR code cho hotspot
                     qr_path = get_project_root() / "assets" / "qr_hotspot.png"
                     url = f"http://{hotspot_ip}:8080"
-                    if generate_qr_code(url, qr_path):
-                        qr_path_str = str(qr_path)
-                    else:
-                        qr_path_str = ""
+                    qr_path_str = str(qr_path) if generate_qr_code(url, qr_path) else ""
                     
-                    # Update GUI với thông tin hotspot
+                    # Hiển thị hotspot overlay
                     await self._update_gui_network_info(hotspot_ip, "hotspot", qr_path_str)
+                    
+                    # CHỜVIÊN cấu hình WiFi xong (polling every 5 seconds)
+                    logger.info("Đang chờ user cấu hình WiFi...")
+                    wifi_connected = False
+                    while not wifi_connected and self.running:
+                        await asyncio.sleep(5)
+                        if is_connected():
+                            wifi_connected = True
+                            logger.info("WiFi đã được cấu hình thành công!")
+                    
+                    if wifi_connected:
+                        # Lấy IP mới
+                        new_ip = get_current_ip()
+                        logger.info(f"IP mới: {new_ip}")
+                        
+                        # Tạo QR code mới
+                        qr_path = get_project_root() / "assets" / "qr_settings.png"
+                        url = f"http://{new_ip}:8080"
+                        qr_path_str = str(qr_path) if generate_qr_code(url, qr_path) else ""
+                        
+                        # Hiển thị IP mới overlay 15 giây
+                        await self._update_gui_network_info(new_ip, "connected", qr_path_str)
+                        logger.info(f"Hiển thị IP mới overlay 15 giây...")
+                        await asyncio.sleep(15)
+                        
+                        # Ẩn overlay
+                        await self._update_gui_network_info("", "hidden", "")
+                        logger.info("Đã ẩn network overlay")
+                    
             except Exception as e:
                 logger.warning(f"Network setup error: {e}")
             
-            # Monitor network status và update GUI khi kết nối thay đổi
-            self.spawn(self._monitor_network_status(), "network-status-monitor")
-            
-            # Kết nối WebSocket trong background (không block startup)
-            logger.info("Scheduling WebSocket connection in background...")
+            # Kết nối WebSocket (chỉ sau khi đã có mạng)
+            logger.info("Đang kết nối WebSocket...")
             self.spawn(self._auto_connect_protocol(), "auto-connect-protocol")
             # Chờ dừng
             await self._wait_shutdown()

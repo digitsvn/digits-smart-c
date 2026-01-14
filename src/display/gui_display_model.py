@@ -264,6 +264,11 @@ class GuiDisplayModel(QObject):
             self.networkInfoText = f"📶 WiFi: SmartC-Setup\n🔐 Pass: smartc123\n🌐 http://{ip}:8080"
         elif mode == "connected":
             self.networkInfoText = f"📱 Settings: http://{ip}:8080"
+        elif mode == "hidden":
+            # Ẩn overlay
+            self.networkInfoText = ""
+            self.qrCodePath = ""
+            return
         else:
             self.networkInfoText = "📶 Đang kết nối..."
         

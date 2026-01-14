@@ -86,23 +86,23 @@ Boot Pi → Smart C AI khởi động
    Không có        Có WiFi
       ↓               ↓
  Bật Hotspot      Hiển thị IP
-"SmartC-Setup"    + QR code
+"SmartC-Setup"    + QR code (15s)
       ↓               ↓
-Hiển thị trên     Web Dashboard
-GUI overlay:      http://IP:8080
-📶 WiFi: SmartC-Setup
-🔐 Pass: smartc123
-🌐 http://192.168.4.1:8080
-[QR Code]
-      ↓
- Cấu hình WiFi
+Hiển thị overlay  Ẩn overlay
+(chờ user config)     ↓
+      ↓           Chạy App Chính
+ Cấu hình WiFi    (Chat Bot)
+ qua web
       ↓
 Kết nối thành công
       ↓
-Update GUI IP mới
+Hiển thị IP mới
++ QR code (15s)
       ↓
-Auto WebSocket    → Chat Bot hoạt động
-reconnect           bình thường
+    Ẩn overlay
+      ↓
+  Chạy App Chính
+   (Chat Bot)
 ```
 
 ### 📶 Network Overlay trên GUI
