@@ -88,27 +88,35 @@ class Application:
     # -------------------------
     # Vòng đời
     # -------------------------
-    async def run(self, *, protocol: str = "websocket", mode: str = "gui") -> int:
-        logger.info("Khởi động Application, protocol=%s", protocol)
+    async def run(self, *, protocol: str = "websocket", mode: str = "gui", no_audio: bool = False) -> int:
+        logger.info("Khởi động Application, protocol=%s, no_audio=%s", protocol, no_audio)
         try:
             self.running = True
             self._main_loop = asyncio.get_running_loop()
             self._initialize_async_objects()
             self._set_protocol(protocol)
             self._setup_protocol_callbacks()
-            # Plugin: setup (hoãn nhập AudioPlugin, đảm bảo setup_opus đã thực thi)
-            from src.plugins.audio import AudioPlugin
-
-            # Đăng ký plugin âm thanh, UI, MCP, IoT, từ khóa đánh thức, phím tắt và lịch (chế độ UI từ tham số run)
-            self.plugins.register(
+            
+            # Base plugins list (always loaded)
+            plugins_list = [
                 McpPlugin(),
                 IoTPlugin(),
-                AudioPlugin(),
-                WakeWordPlugin(),
                 CalendarPlugin(),
                 UIPlugin(mode=mode),
                 ShortcutsPlugin(),
-            )
+            ]
+
+            # Conditional Audio Plugins
+            if not no_audio:
+                from src.plugins.audio import AudioPlugin
+                # AudioPlugin needs to be imported after setup_opus potentially
+                plugins_list.append(AudioPlugin())
+                plugins_list.append(WakeWordPlugin())
+            else:
+                 logger.warning("🚫 NO_AUDIO mode enabled: Skipping AudioPlugin and WakeWordPlugin")
+
+            # Register plugins
+            self.plugins.register(*plugins_list)
             await self.plugins.setup_all(self)
             # Sau khi khởi động, phát sóng trạng thái ban đầu, đảm bảo UI sẵn sàng thấy "Đang chờ"
             try:
@@ -193,8 +201,11 @@ class Application:
                 logger.warning(f"Network setup error: {e}")
             
             # Kết nối WebSocket (chỉ sau khi đã có mạng)
-            logger.info("Đang kết nối WebSocket...")
-            self.spawn(self._auto_connect_protocol(), "auto-connect-protocol")
+            if not no_audio:
+                logger.info("Đang kết nối WebSocket Protocol (Voice)...")
+                self.spawn(self._auto_connect_protocol(), "auto-connect-protocol")
+            else:
+                logger.info("Bỏ qua WebSocket Protocol (Voice) do NO_AUDIO mode")
             
             # Khởi động Cloud Agent (Remote Management)
             await self._start_cloud_agent()
@@ -580,8 +591,10 @@ class Application:
         Đọc URL từ config, nếu có thì kết nối.
         """
         try:
-            # Đọc cloud server URL từ config
-            cloud_url = self.config.get_config("CLOUD.SERVER_URL", "")
+            # Đọc cloud server URL từ config (Ưu tiên key từ WebSettings)
+            cloud_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
+            if not cloud_url:
+                cloud_url = self.config.get_config("CLOUD.SERVER_URL", "")
             
             if not cloud_url:
                 logger.info("Cloud Agent: No server URL configured, skipping")

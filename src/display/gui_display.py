@@ -979,7 +979,7 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
             self._slide_timer.stop()
         
         self.display_model.backgroundMode = "video"
-        self.set_video_file(path)
+        self.display_model.update_video_file_path(path)
 
     def set_slideshow(self, images: list, interval: int = 5000):
         """

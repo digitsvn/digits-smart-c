@@ -39,6 +39,11 @@ def parse_args():
         action="store_true",
         help="Bỏ qua quy trình kích hoạt và khởi chạy ứng dụng trực tiếp (chỉ dùng để gỡ lỗi)",
     )
+    parser.add_argument(
+        "--no-audio",
+        action="store_true",
+        help="Chạy ứng dụng không cần hệ thống âm thanh (cấu hình/bảo trì)",
+    )
     return parser.parse_args()
 
 
@@ -67,7 +72,7 @@ async def handle_activation(mode: str) -> bool:
         return False
 
 
-async def start_app(mode: str, protocol: str, skip_activation: bool) -> int:
+async def start_app(mode: str, protocol: str, skip_activation: bool, no_audio: bool) -> int:
     """
     Điểm khởi đầu chung để chạy ứng dụng (thực hiện trong vòng lặp sự kiện hiện có).
     """
@@ -214,12 +219,13 @@ if __name__ == "__main__":
 
             with loop:
                 exit_code = loop.run_until_complete(
-                    start_app(args.mode, args.protocol, args.skip_activation)
+                    start_app(args.mode, args.protocol, args.skip_activation, args.no_audio)
                 )
         else:
             # Chế độ CLI sử dụng vòng lặp sự kiện asyncio tiêu chuẩn
             exit_code = asyncio.run(
-                start_app(args.mode, args.protocol, args.skip_activation)
+            exit_code = asyncio.run(
+                start_app(args.mode, args.protocol, args.skip_activation, args.no_audio)
             )
 
     except KeyboardInterrupt:
