@@ -93,8 +93,14 @@ Rectangle {
             anchors.fill: parent
             visible: bgLayer.bgMode === "slide" && displayModel && displayModel.currentSlideUrl && displayModel.currentSlideUrl.length > 0
             source: visible ? displayModel.currentSlideUrl : ""
-            fillMode: Image.PreserveAspectFit
-            cache: false // Force reload if logic needs it, though URL usually is unique enough
+            
+            // Cải thiện chất lượng hiển thị
+            fillMode: Image.PreserveAspectCrop 
+            mipmap: true
+            smooth: true
+            opacity: 1.0
+
+            cache: false 
             
             // Fade Transition for smooth slide
             Behavior on source {
