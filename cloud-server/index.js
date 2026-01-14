@@ -39,9 +39,63 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' })); // For screenshot uploads
 app.use(express.static(path.join(__dirname, 'dashboard')));
 
+// Auth Configuration
+const USERS = {
+    'hoainguyen': '12345678#'
+};
+const TOKENS = new Map(); // token -> username
+
+// Auth Middleware
+const auth = (req, res, next) => {
+    // Public routes
+    if (req.path === '/api/login' || req.path === '/login.html' || req.path === '/health') {
+        return next();
+    }
+
+    // Check header token
+    const token = req.headers['authorization'];
+    if (token && TOKENS.has(token)) {
+        req.user = TOKENS.get(token);
+        return next();
+    }
+
+    // Check cookie/query (for static files/websocket if needed)
+    // For now, API only
+
+    res.status(401).json({ error: 'Unauthorized' });
+};
+
+// ========== Auth API ==========
+
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+
+    if (USERS[username] && USERS[username] === password) {
+        const token = uuidv4();
+        TOKENS.set(token, username);
+        res.json({ token, username });
+    } else {
+        res.status(401).json({ error: 'Invalid credentials' });
+    }
+});
+
+app.post('/api/logout', (req, res) => {
+    const token = req.headers['authorization'];
+    if (token) {
+        TOKENS.delete(token);
+    }
+    res.json({ success: true });
+});
+
+// Apply Auth to specific routes or globally (careful with static files)
+// For simplicity: dashboard HTML does client-side check, 
+// APIs are protected
+app.use('/api/devices', auth);
+
 // ========== WebSocket Handlers ==========
 wss.on('connection', (ws, req) => {
     console.log('📱 New device connection');
+    // Device auth logic could be added here (e.g. check API Key)
 
     let deviceId = null;
 

@@ -677,6 +677,33 @@
         let selectedDevice = null;
         let autoRefreshInterval = null;
 
+        // ========== Auth Check ==========
+        const token = localStorage.getItem('smartc_token');
+        if (!token) {
+            window.location.href = '/login.html';
+        }
+
+        // Add headers to fetch
+        const originalFetch = window.fetch;
+        window.fetch = async function (url, options = {}) {
+            if (!options.headers) options.headers = {};
+            options.headers['Authorization'] = localStorage.getItem('smartc_token');
+            const response = await originalFetch(url, options);
+
+            if (response.status === 401) {
+                localStorage.removeItem('smartc_token');
+                window.location.href = '/login.html';
+            }
+
+            return response;
+        };
+
+        function logout() {
+            fetch('/api/logout', { method: 'POST' });
+            localStorage.removeItem('smartc_token');
+            window.location.href = '/login.html';
+        }
+
         // ========== Toast ==========
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -959,6 +986,17 @@
         document.getElementById('configModal').addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay')) closeConfig();
         });
+
+        // Add Logout button dynamically
+        const header = document.querySelector('.header');
+        if (header) {
+            const logoutBtn = document.createElement('button');
+            logoutBtn.className = 'btn text-white';
+            logoutBtn.innerHTML = '🚪 Đăng xuất';
+            logoutBtn.style.marginLeft = 'auto';
+            logoutBtn.onclick = logout;
+            header.appendChild(logoutBtn);
+        }
     </script>
 </body>
 

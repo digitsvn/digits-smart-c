@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart C AI - Login</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .error {
+            color: #f5576c;
+            font-size: 14px;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-card">
+        <div class="logo">🤖</div>
+        <h1>Smart C Dashboard</h1>
+        <p>Đăng nhập để quản lý thiết bị</p>
+
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label>Tên đăng nhập</label>
+                <input type="text" id="username" placeholder="Nhập username" required>
+            </div>
+            <div class="form-group">
+                <label>Mật khẩu</label>
+                <input type="password" id="password" placeholder="Nhập mật khẩu" required>
+            </div>
+            <button type="submit" id="btnSubmit">Đăng nhập</button>
+            <div class="error" id="errorMsg">Thông tin đăng nhập không đúng</div>
+        </form>
+    </div>
+
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('btnSubmit');
+            const error = document.getElementById('errorMsg');
+
+            btn.textContent = 'Đang xử lý...';
+            btn.disabled = true;
+            error.style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok && data.token) {
+                    // Save token
+                    localStorage.setItem('smartc_token', data.token);
+                    localStorage.setItem('smartc_user', username);
+                    // Redirect
+                    window.location.href = '/';
+                } else {
+                    error.textContent = data.error || 'Đăng nhập thất bại';
+                    error.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Đăng nhập';
+                }
+            } catch (err) {
+                error.textContent = 'Lỗi kết nối server';
+                error.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Đăng nhập';
+            }
+        }
+
+        // Check if already logged in
+        if (localStorage.getItem('smartc_token')) {
+            window.location.href = '/';
+        }
+    </script>
+</body>
+
+</html>
