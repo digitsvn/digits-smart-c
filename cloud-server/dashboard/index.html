@@ -563,7 +563,7 @@
                         <div class="form-group">
                             <label>Chọn video có sẵn:</label>
                             <select id="videoSelect">
-                                <option value="">Đang tải...</option>
+                                <option value="">-- Nhập đường dẫn bên dưới --</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -968,6 +968,10 @@
             // Load initial data
             scanWifi();
             loadGallery();
+        }
+
+        function closeConfig() {
+            document.getElementById('configModal').classList.remove('active');
         }
 
         // ========== Background Mode ==========
