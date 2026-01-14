@@ -245,8 +245,19 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
                     else:
                         abs_images.append(img)
             
+            # FALLBACK: If no images configured, load all from slideshow folder
+            if not abs_images:
+                slideshow_dir = get_project_root() / "assets" / "images" / "slideshow"
+                if slideshow_dir.exists():
+                    for ext in ['*.jpg', '*.jpeg', '*.png', '*.gif', '*.webp']:
+                        abs_images.extend([str(p) for p in slideshow_dir.glob(ext)])
+                    self.logger.info(f"[BG] Auto-loaded {len(abs_images)} images from slideshow folder")
+            
             self.logger.info(f"[BG] Mode: Slide, Images: {len(abs_images)}")
-            self.set_slideshow(abs_images, interval)
+            if abs_images:
+                self.set_slideshow(abs_images, interval)
+            else:
+                self.logger.warning("[BG] No slideshow images found!")
             return
 
         # 2. Video Mode Logic
