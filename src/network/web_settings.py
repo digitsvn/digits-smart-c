@@ -1376,7 +1376,8 @@ class WebSettingsServer:
             for ext in ['*.jpg', '*.jpeg', '*.png', '*.gif', '*.webp']:
                 images.extend([{
                     "name": p.name,
-                    "path": str(p.relative_to(get_project_root()))
+                    "path": str(p.relative_to(get_project_root())),
+                    "url": f"/assets/images/slideshow/{p.name}"
                 } for p in img_dir.glob(ext)])
         return web.json_response({"images": images})
 
