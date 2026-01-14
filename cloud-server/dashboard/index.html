@@ -541,7 +541,7 @@
                     <button class="tab-btn" onclick="switchTab('audio')">🔊 Audio</button>
                     <button class="tab-btn" onclick="switchTab('wakeword')">🎤 Wake Word</button>
                     <button class="tab-btn" onclick="switchTab('wifi')">📶 WiFi</button>
-                    <button class="tab-btn" onclick="switchTab('system')">🌐 Hệ thống</button>
+                    <!-- System Tab Removed -->
                 </div>
 
                 <!-- Background Tab -->
@@ -680,32 +680,7 @@
                     </div>
                 </div>
 
-                <!-- System Tab -->
-                <div class="tab-content" id="tab-system">
-                    <div class="config-card">
-                        <h3>🔧 Hành động Thiết bị</h3>
-                        <div class="action-buttons"
-                            style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 20px;">
-                            <button class="btn btn-secondary" onclick="deviceAction('restart')"
-                                style="min-width: 160px; height: 50px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                                🔄 <span>Restart App</span>
-                            </button>
-                            <button class="btn btn-secondary" onclick="deviceAction('update')"
-                                style="min-width: 160px; height: 50px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                                📥 <span>Git Pull</span>
-                            </button>
-                            <button class="btn btn-danger" onclick="deviceAction('reboot')"
-                                style="min-width: 160px; height: 50px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                                ⚡ <span>Reboot Pi</span>
-                            </button>
-                        </div>
-                        <div style="margin-top: 30px; text-align: center;">
-                            <button class="btn btn-info" onclick="viewLogs()" style="min-width: 200px; padding: 12px;">
-                                📜 Xem System Logs
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- System Tab Removed -->
             </div>
         </div>
 
@@ -866,6 +841,12 @@
                     <div class="screen-header">
                         <h2>📺 ${device.name}</h2>
                         <div class="screen-controls">
+                            <!-- Action Buttons moved from Config -->
+                            <button class="btn btn-secondary" onclick="deviceAction('restart', '${device.id}')" title="Restart App">🔄 Restart</button>
+                            <button class="btn btn-secondary" onclick="deviceAction('update', '${device.id}')" title="Git Pull">📥 Update</button>
+                            <button class="btn btn-secondary" onclick="viewLogs()" title="System Logs">📜 Logs</button>
+                            <button class="btn btn-danger" onclick="deviceAction('reboot', '${device.id}')" title="Reboot Pi">⚡ Reboot</button>
+                            <div style="width: 1px; background: rgba(255,255,255,0.2); margin: 0 5px;"></div>
                             <button class="btn btn-secondary" onclick="refreshScreen('${device.id}')">↻ Refresh</button>
                             <button class="btn btn-primary" onclick="openConfig('${device.id}')">⚙️ Cấu hình</button>
                         </div>
