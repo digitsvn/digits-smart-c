@@ -101,15 +101,10 @@ Rectangle {
             opacity: 1.0
 
             cache: false 
+            z: 1
             
-            // Fade Transition for smooth slide
-            Behavior on source {
-                SequentialAnimation {
-                    PropertyAnimation { target: slideImage; property: "opacity"; to: 0; duration: 250 }
-                    PropertyAction { target: slideImage; property: "source" }
-                    PropertyAnimation { target: slideImage; property: "opacity"; to: 1; duration: 500 }
-                }
-            }
+            // Fade Transition temporarily removed to debug visibility
+            // Behavior on source { ... }
         }
 
         // Emotion Loader (when video/animation is not active)
