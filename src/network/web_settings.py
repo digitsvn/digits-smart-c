@@ -158,6 +158,8 @@ DASHBOARD_HTML = """
         .gallery-item.selected img { opacity: 1; }
         .check-icon { position: absolute; top: 5px; right: 5px; color: #38ef7d; display: none; background: rgba(0,0,0,0.5); border-radius: 50%; padding: 2px; }
         .gallery-item.selected .check-icon { display: block; }
+        .delete-btn { position: absolute; top: 5px; left: 5px; background: rgba(255,0,0,0.7); border: none; border-radius: 4px; color: white; cursor: pointer; padding: 2px 6px; font-size: 12px; }
+        .delete-btn:hover { background: rgba(255,0,0,1); }
     </style>
 </head>
 <body>
@@ -532,10 +534,10 @@ DASHBOARD_HTML = """
                 images.forEach(img => {
                     const div = document.createElement('div');
                     div.className = 'gallery-item';
-                    div.onclick = () => toggleImageSelection(div, img.url);
                     div.innerHTML = `
-                        <img src="${img.url}">
+                        <img src="${img.url}" onclick="toggleImageSelection(this.parentElement, '${img.url}')">
                         <div class="check-icon">✓</div>
+                        <button class="delete-btn" onclick="deleteImage('${img.name}', event)" title="Xóa ảnh">🗑️</button>
                     `;
                     gallery.appendChild(div);
                 });
@@ -555,6 +557,27 @@ DASHBOARD_HTML = """
             } else {
                 selectedImages.add(url);
                 el.classList.add('selected');
+            }
+        }
+
+        async function deleteImage(filename, event) {
+            event.stopPropagation();
+            if (!confirm('Xóa ảnh này?')) return;
+            
+            try {
+                const resp = await fetch('/api/images/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename: filename})
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    loadGallery();
+                } else {
+                    alert('Lỗi: ' + data.message);
+                }
+            } catch (e) {
+                alert('Lỗi xóa ảnh: ' + e.message);
             }
         }
 
@@ -1232,6 +1255,7 @@ class WebSettingsServer:
         # Slideshow
         self.app.router.add_post('/api/upload_image', self._handle_upload_image)
         self.app.router.add_get('/api/images/list', self._handle_list_images)
+        self.app.router.add_post('/api/images/delete', self._handle_delete_image)
         self.app.router.add_post('/api/slide/set', self._handle_slide_set)
         # Wake Word
         self.app.router.add_get('/api/wakeword', self._handle_wakeword_get)
@@ -1380,6 +1404,31 @@ class WebSettingsServer:
                     "url": f"/assets/images/slideshow/{p.name}"
                 } for p in img_dir.glob(ext)])
         return web.json_response({"images": images})
+
+    async def _handle_delete_image(self, request):
+        """Xóa ảnh slideshow."""
+        try:
+            data = await request.json()
+            filename = data.get("filename", "")
+            
+            if not filename:
+                return web.json_response({"success": False, "message": "Tên file trống"})
+            
+            # Sanitize filename to prevent path traversal
+            import re
+            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+            
+            img_path = get_project_root() / "assets" / "images" / "slideshow" / safe_filename
+            
+            if img_path.exists():
+                img_path.unlink()
+                logger.info(f"Deleted image: {safe_filename}")
+                return web.json_response({"success": True, "message": f"Đã xóa {safe_filename}"})
+            else:
+                return web.json_response({"success": False, "message": "File không tồn tại"})
+        except Exception as e:
+            logger.error(f"Delete image failed: {e}")
+            return web.json_response({"success": False, "message": str(e)})
 
     async def _handle_slide_set(self, request):
         """Cài đặt slideshow."""
