@@ -366,24 +366,8 @@ class WiFiManager:
             # Dừng hotspot cũ nếu có
             self.stop_hotspot()
             
-            # Tạo hotspot
-            result = self._run_nmcli([
-                "device", "wifi", "hotspot",
-                "ifname", self._wifi_interface,
-                "ssid", ssid,
-                "password", password,
-                "band", "bg",  # 2.4GHz
-                "channel", str(channel)
-            ], timeout=30)
-            
-            if result.returncode == 0:
-                logger.info(f"Hotspot đã bật: {ssid} (mật khẩu: {password})")
-                self._notify_state_change(WiFiState.HOTSPOT_ACTIVE)
-                return True
-            else:
-                # Thử cách khác: tạo connection profile
-                logger.warning(f"Hotspot command thất bại, thử cách khác: {result.stderr}")
-                return self._start_hotspot_via_connection(ssid, password)
+            # Luôn dùng connection profile để đảm bảo IP 192.168.4.1
+            return self._start_hotspot_via_connection(ssid, password)
                 
         except Exception as e:
             logger.error(f"Lỗi bật hotspot: {e}")
