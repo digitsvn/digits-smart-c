@@ -399,6 +399,9 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         if self.app is None:
             raise RuntimeError("QApplication không tìm thấy, hãy đảm bảo chạy trong môi trường qasync")
 
+        # Force show cursor explicitly
+        self.app.setOverrideCursor(Qt.ArrowCursor)
+
         self.app.setQuitOnLastWindowClosed(False)
         self.app.setFont(QFont("Tahoma, Arial", self.DEFAULT_FONT_SIZE))
 
