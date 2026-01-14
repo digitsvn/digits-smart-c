@@ -520,10 +520,11 @@ DASHBOARD_HTML = """
             gallery.innerHTML = 'Loading...';
             try {
                 const resp = await fetch('/api/images/list');
-                const images = await resp.json();
+                const data = await resp.json();
+                const images = data.images || [];
                 
                 gallery.innerHTML = '';
-                if (images.length === 0) {
+                if (!images || images.length === 0) {
                     gallery.innerHTML = '<div style="grid-column: 1/-1; color: #888; text-align: center;">Chưa có ảnh nào. Hãy upload ảnh mới.</div>';
                     return;
                 }
