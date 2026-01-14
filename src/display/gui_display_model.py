@@ -21,6 +21,11 @@ class GuiDisplayModel(QObject):
     autoModeChanged = pyqtSignal()
     videoFrameUrlChanged = pyqtSignal()
     videoFilePathChanged = pyqtSignal()  # Path cho native video player
+    
+    # Network Info signals
+    networkInfoTextChanged = pyqtSignal()
+    qrCodePathChanged = pyqtSignal()
+    networkModeChanged = pyqtSignal()  # "connected", "hotspot", "disconnected"
 
     # Tín hiệu thao tác người dùng
     manualButtonPressed = pyqtSignal()
@@ -45,6 +50,11 @@ class GuiDisplayModel(QObject):
         self._is_connected = False
         self._video_frame_url = ""  # URL file:///... (kèm cache-bust query) cho khung video
         self._video_file_path = ""  # Path file video để native player phát (hardware accelerated)
+        
+        # Network info properties
+        self._network_info_text = ""  # Text hiển thị IP/WiFi info
+        self._qr_code_path = ""  # Đường dẫn QR code image
+        self._network_mode = "disconnected"  # "connected", "hotspot", "disconnected"
 
     # Thuộc tính văn bản trạng thái
     @pyqtProperty(str, notify=statusTextChanged)
@@ -204,3 +214,60 @@ class GuiDisplayModel(QObject):
     def update_video_frame_url(self, url: str):
         """Cập nhật URL khung video (dùng cho QML Image)."""
         self.videoFrameUrl = url or ""
+
+    # ===== Network Info Properties =====
+    
+    @pyqtProperty(str, notify=networkInfoTextChanged)
+    def networkInfoText(self):
+        return self._network_info_text
+
+    @networkInfoText.setter
+    def networkInfoText(self, value):
+        if self._network_info_text != value:
+            self._network_info_text = value
+            self.networkInfoTextChanged.emit()
+
+    @pyqtProperty(str, notify=qrCodePathChanged)
+    def qrCodePath(self):
+        return self._qr_code_path
+
+    @qrCodePath.setter
+    def qrCodePath(self, value):
+        if self._qr_code_path != value:
+            self._qr_code_path = value
+            self.qrCodePathChanged.emit()
+
+    @pyqtProperty(str, notify=networkModeChanged)
+    def networkMode(self):
+        return self._network_mode
+
+    @networkMode.setter
+    def networkMode(self, value):
+        if self._network_mode != value:
+            self._network_mode = value
+            self.networkModeChanged.emit()
+
+    def update_network_info(self, ip: str, mode: str, qr_path: str = ""):
+        """
+        Cập nhật thông tin mạng để hiển thị trên GUI.
+        
+        Args:
+            ip: Địa chỉ IP (hoặc thông tin WiFi setup)
+            mode: "connected", "hotspot", "disconnected"
+            qr_path: Đường dẫn file QR code (optional)
+        """
+        from PyQt5.QtCore import QUrl
+        
+        self.networkMode = mode
+        
+        if mode == "hotspot":
+            self.networkInfoText = f"📶 WiFi: SmartC-Setup\n🔐 Pass: smartc123\n🌐 http://{ip}:8080"
+        elif mode == "connected":
+            self.networkInfoText = f"📱 Settings: http://{ip}:8080"
+        else:
+            self.networkInfoText = "📶 Đang kết nối..."
+        
+        if qr_path:
+            self.qrCodePath = QUrl.fromLocalFile(qr_path).toString()
+        else:
+            self.qrCodePath = ""

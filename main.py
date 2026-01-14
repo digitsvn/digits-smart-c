@@ -74,7 +74,9 @@ async def start_app(mode: str, protocol: str, skip_activation: bool) -> int:
     logger.info("Khởi chạy Trợ lý AI Smart C")
 
     # =====================================
-    # BƯỚC 0: Kiểm tra và thiết lập WiFi (chỉ trên Raspberry Pi)
+    # BƯỚC 0: Kiểm tra WiFi (chỉ trên Raspberry Pi)
+    # NOTE: Không block app nếu chưa có WiFi - app sẽ tự bật hotspot
+    # và hiển thị thông tin kết nối trên GUI
     # =====================================
     try:
         from src.core.startup_flow import is_raspberry_pi, check_wifi_connection
@@ -82,30 +84,11 @@ async def start_app(mode: str, protocol: str, skip_activation: bool) -> int:
         if is_raspberry_pi():
             logger.info("Phát hiện Raspberry Pi, kiểm tra kết nối WiFi...")
             
-            if not check_wifi_connection():
-                logger.info("Chưa có kết nối WiFi, chạy WiFi Setup...")
-                
-                from src.core.startup_flow import run_startup_flow
-                wifi_ok, wifi_msg = await run_startup_flow(mode)
-                
-                if not wifi_ok:
-                    logger.error(f"WiFi Setup thất bại: {wifi_msg}")
-                    # Hiển thị thông báo cho user nếu GUI
-                    if mode == "gui":
-                        try:
-                            from PyQt5.QtWidgets import QMessageBox
-                            QMessageBox.critical(
-                                None, 
-                                "Lỗi WiFi",
-                                f"Không thể thiết lập kết nối WiFi.\n{wifi_msg}\n\nỨng dụng sẽ thoát."
-                            )
-                        except Exception:
-                            pass
-                    return 1
-                
-                logger.info(f"WiFi Setup hoàn tất: {wifi_msg}")
-            else:
+            if check_wifi_connection():
                 logger.info("Đã có kết nối WiFi ✓")
+            else:
+                # Không block ở đây - app sẽ tự xử lý hotspot trong application.py
+                logger.info("Chưa có kết nối WiFi - app sẽ tự bật hotspot")
     except ImportError:
         logger.debug("Startup flow module không khả dụng, bỏ qua WiFi check")
     except Exception as e:

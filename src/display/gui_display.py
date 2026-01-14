@@ -170,6 +170,17 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         if self.auto_mode:
             self.display_model.update_button_text(text)
 
+    async def update_network_info(self, ip: str, mode: str, qr_path: str = ""):
+        """
+        Cập nhật thông tin mạng để hiển thị overlay trên GUI.
+        
+        Args:
+            ip: Địa chỉ IP (hoặc hotspot IP)
+            mode: "connected", "hotspot", "disconnected"
+            qr_path: Đường dẫn file QR code (optional)
+        """
+        self.display_model.update_network_info(ip, mode, qr_path)
+
     async def toggle_mode(self):
         """
         Chuyển đổi chế độ đối thoại.

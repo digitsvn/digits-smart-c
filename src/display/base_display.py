@@ -56,6 +56,13 @@ class BaseDisplay(ABC):
         Cập nhật biểu cảm.
         """
 
+    async def update_network_info(self, ip: str, mode: str, qr_path: str = ""):
+        """
+        Cập nhật thông tin mạng (IP, QR code) để hiển thị.
+        Mặc định không làm gì - chỉ GUI override method này.
+        """
+        pass
+
     @abstractmethod
     async def start(self):
         """

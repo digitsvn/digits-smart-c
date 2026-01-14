@@ -120,23 +120,52 @@ class Application:
             
             # Check network và khởi động Web Settings/Hotspot
             try:
-                from src.network.network_status import is_connected, start_hotspot_if_no_network, get_current_ip
+                from src.network.network_status import is_connected, start_hotspot_if_no_network, get_current_ip, generate_qr_code
                 from src.network.web_settings import start_web_settings
+                from src.utils.resource_finder import get_project_root
                 
                 if is_connected():
                     # Đã có mạng -> Start Web Settings Dashboard
                     await start_web_settings(port=8080)
                     ip = get_current_ip()
                     logger.info(f"🌐 Web Settings: http://{ip}:8080")
+                    
+                    # Tạo QR code cho URL settings
+                    qr_path = get_project_root() / "assets" / "qr_settings.png"
+                    url = f"http://{ip}:8080"
+                    if generate_qr_code(url, qr_path):
+                        qr_path_str = str(qr_path)
+                    else:
+                        qr_path_str = ""
+                    
+                    # Update GUI với thông tin mạng
+                    await self._update_gui_network_info(ip, "connected", qr_path_str)
                 else:
                     # Chưa có mạng -> Bật Hotspot + Start Web Settings
                     logger.info("Không có mạng, đang bật hotspot...")
                     await start_hotspot_if_no_network()
-                    await start_web_settings(port=80)  # Port 80 cho captive portal
+                    # Port 8080 thay vì 80 (port < 1024 cần quyền root)
+                    await start_web_settings(port=8080)
+                    
+                    hotspot_ip = "192.168.4.1"
                     logger.info("📶 Hotspot: SmartC-Setup | Pass: smartc123")
-                    logger.info("🌐 Cấu hình: http://192.168.4.1")
+                    logger.info(f"🌐 Cấu hình: http://{hotspot_ip}:8080")
+                    
+                    # Tạo QR code cho URL hotspot
+                    qr_path = get_project_root() / "assets" / "qr_hotspot.png"
+                    url = f"http://{hotspot_ip}:8080"
+                    if generate_qr_code(url, qr_path):
+                        qr_path_str = str(qr_path)
+                    else:
+                        qr_path_str = ""
+                    
+                    # Update GUI với thông tin hotspot
+                    await self._update_gui_network_info(hotspot_ip, "hotspot", qr_path_str)
             except Exception as e:
                 logger.warning(f"Network setup error: {e}")
+            
+            # Monitor network status và update GUI khi kết nối thay đổi
+            self.spawn(self._monitor_network_status(), "network-status-monitor")
             
             # Kết nối WebSocket trong background (không block startup)
             logger.info("Scheduling WebSocket connection in background...")
@@ -499,6 +528,85 @@ class Application:
         """
         payload = {"type": "llm", "emotion": emotion}
         self.spawn(self.plugins.notify_incoming_json(payload), "ui:emotion_update")
+
+    async def _update_gui_network_info(self, ip: str, mode: str, qr_path: str = "") -> None:
+        """
+        Cập nhật thông tin mạng lên GUI (IP, QR code, mode).
+        
+        Args:
+            ip: Địa chỉ IP hoặc hotspot IP
+            mode: "connected", "hotspot", "disconnected"
+            qr_path: Đường dẫn file QR code (optional)
+        """
+        try:
+            ui_plugin = self.plugins.get_plugin("ui")
+            if ui_plugin and ui_plugin.display:
+                await ui_plugin.display.update_network_info(ip, mode, qr_path)
+                logger.info(f"Updated GUI network info: mode={mode}, ip={ip}")
+        except Exception as e:
+            logger.warning(f"Failed to update GUI network info: {e}")
+
+    async def _monitor_network_status(self) -> None:
+        """
+        Monitor network status và update GUI khi kết nối thay đổi.
+        Chạy background, check mỗi 10 giây.
+        """
+        last_mode = None
+        last_ip = None
+        check_interval = 10  # seconds
+        
+        while self.running:
+            try:
+                await asyncio.sleep(check_interval)
+                
+                if not self.running:
+                    break
+                
+                from src.network.network_status import is_connected, get_current_ip, generate_qr_code
+                from src.utils.resource_finder import get_project_root
+                
+                current_connected = is_connected()
+                current_ip = get_current_ip() if current_connected else None
+                
+                # Xác định mode hiện tại
+                if current_connected and current_ip:
+                    current_mode = "connected"
+                else:
+                    # Kiểm tra xem hotspot có đang chạy không
+                    try:
+                        from src.network.wifi_manager import get_wifi_manager
+                        wifi = get_wifi_manager()
+                        if wifi.is_hotspot_active():
+                            current_mode = "hotspot"
+                            current_ip = "192.168.4.1"
+                        else:
+                            current_mode = "disconnected"
+                    except Exception:
+                        current_mode = "disconnected"
+                
+                # Chỉ update GUI khi có thay đổi
+                if current_mode != last_mode or current_ip != last_ip:
+                    logger.info(f"Network status changed: {last_mode} -> {current_mode}, IP: {last_ip} -> {current_ip}")
+                    
+                    qr_path_str = ""
+                    if current_ip:
+                        # Tạo QR code
+                        qr_path = get_project_root() / "assets" / "qr_settings.png"
+                        # Luôn dùng port 8080 (port 80 cần quyền root)
+                        url = f"http://{current_ip}:8080"
+                        
+                        if generate_qr_code(url, qr_path):
+                            qr_path_str = str(qr_path)
+                    
+                    await self._update_gui_network_info(current_ip or "", current_mode, qr_path_str)
+                    
+                    last_mode = current_mode
+                    last_ip = current_ip
+                    
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug(f"Network monitor error: {e}")
 
     # -------------------------
     # Dừng

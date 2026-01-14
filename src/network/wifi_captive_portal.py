@@ -706,20 +706,51 @@ class WiFiSetupService:
             
             if has_internet:
                 logger.info("Kết nối WiFi và Internet thành công!")
-                self._setup_result = True
-                self._setup_complete.set()
-                return True
             else:
                 logger.warning("Kết nối WiFi nhưng không có Internet")
-                # Vẫn coi là thành công nếu kết nối được WiFi
-                self._setup_result = True
-                self._setup_complete.set()
-                return True
+            
+            # Update GUI với IP mới sau khi kết nối thành công
+            await self._update_gui_with_new_ip()
+            
+            self._setup_result = True
+            self._setup_complete.set()
+            return True
         else:
             logger.error("Kết nối WiFi thất bại")
             # Bật lại hotspot để thử lại
             self._wifi_manager.start_hotspot()
             return False
+    
+    async def _update_gui_with_new_ip(self):
+        """Update GUI với IP mới sau khi kết nối WiFi thành công"""
+        try:
+            from src.network.network_status import get_current_ip, generate_qr_code
+            from src.utils.resource_finder import get_project_root
+            from src.application import Application
+            
+            # Lấy IP mới
+            ip = get_current_ip()
+            if not ip:
+                logger.warning("Không lấy được IP sau khi kết nối")
+                return
+            
+            logger.info(f"IP mới sau kết nối: {ip}")
+            
+            # Tạo QR code cho URL settings
+            qr_path = get_project_root() / "assets" / "qr_settings.png"
+            url = f"http://{ip}:8080"
+            if generate_qr_code(url, qr_path):
+                qr_path_str = str(qr_path)
+            else:
+                qr_path_str = ""
+            
+            # Update GUI
+            app = Application.get_instance()
+            if app:
+                await app._update_gui_network_info(ip, "connected", qr_path_str)
+                logger.info(f"Đã update GUI với IP mới: {ip}")
+        except Exception as e:
+            logger.error(f"Lỗi update GUI với IP mới: {e}")
     
     def cancel(self):
         """Hủy quá trình setup"""

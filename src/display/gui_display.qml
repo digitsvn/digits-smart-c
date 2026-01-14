@@ -151,6 +151,88 @@ Rectangle {
         id: overlay
         anchors.fill: parent
 
+        // Network Info Overlay (Top-Right - shows when hotspot/connected)
+        Rectangle {
+            id: networkOverlay
+            anchors.top: parent.top
+            anchors.topMargin: 50
+            anchors.right: parent.right
+            anchors.rightMargin: 15
+            width: networkColumn.width + 24
+            height: networkColumn.height + 24
+            radius: 16
+            color: displayModel && displayModel.networkMode === "hotspot" ? "#E05C258C" : "#E01a1a2e"
+            border.color: displayModel && displayModel.networkMode === "hotspot" ? "#9C27B0" : "#333"
+            border.width: 2
+            visible: displayModel && displayModel.networkInfoText && displayModel.networkInfoText.length > 0
+            z: 20
+            
+            // Glassmorphism effect
+            layer.enabled: true
+            layer.effect: DropShadow {
+                transparentBorder: true
+                horizontalOffset: 0
+                verticalOffset: 4
+                radius: 16
+                samples: 25
+                color: "#50000000"
+            }
+            
+            Column {
+                id: networkColumn
+                anchors.centerIn: parent
+                spacing: 10
+                
+                // Network Info Text
+                Text {
+                    id: networkText
+                    text: displayModel ? displayModel.networkInfoText : ""
+                    color: "#ffffff"
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    horizontalAlignment: Text.AlignHCenter
+                    lineHeight: 1.3
+                }
+                
+                // QR Code Image (when available)
+                Image {
+                    id: qrCodeImage
+                    source: displayModel && displayModel.qrCodePath ? displayModel.qrCodePath : ""
+                    visible: displayModel && displayModel.qrCodePath && displayModel.qrCodePath.length > 0
+                    width: 120
+                    height: 120
+                    fillMode: Image.PreserveAspectFit
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: -8
+                        color: "white"
+                        radius: 8
+                        z: -1
+                    }
+                }
+                
+                // Scan hint
+                Text {
+                    visible: qrCodeImage.visible
+                    text: "📷 Quét để cấu hình"
+                    color: "#aaaaaa"
+                    font.pixelSize: 11
+                    horizontalAlignment: Text.AlignHCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
+            }
+            
+            // Pulse animation for hotspot mode
+            SequentialAnimation on opacity {
+                running: displayModel && displayModel.networkMode === "hotspot"
+                loops: Animation.Infinite
+                NumberAnimation { to: 1.0; duration: 1500 }
+                NumberAnimation { to: 0.85; duration: 1500 }
+            }
+        }
+        
         // Title Bar (Semi-transparent)
         Rectangle {
             id: titleBar
