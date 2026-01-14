@@ -567,9 +567,39 @@ class CloudAgent:
                 await self._send_screenshot()
             await asyncio.sleep(self.screenshot_interval)
     
+    async def _check_update_on_startup(self):
+        """Kiểm tra update khi khởi động."""
+        try:
+            logger.info("Checking for startup updates...")
+            result = subprocess.run(
+                ["git", "pull", "origin", "main"],
+                cwd=str(get_project_root()),
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            output = result.stdout or ""
+            if result.returncode == 0 and "Already up to date" not in output:
+                logger.info("✨ Startup Update found! Updating and restarting...")
+                # Log to file or send to server could be added here
+                # Restart service to apply changes
+                subprocess.Popen(["sudo", "systemctl", "restart", "smartc"])
+                return True
+            else:
+                logger.info("System is up to date.")
+                return False
+                
+        except Exception as e:
+            logger.warning(f"Startup update check failed: {e}")
+            return False
+
     async def run(self):
         """Main loop."""
         self.running = True
+        
+        # Check update on startup (one time)
+        await self._check_update_on_startup()
         
         while self.running:
             if not self.connected:
