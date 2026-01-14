@@ -15,6 +15,9 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
+// Database
+const db = require('./db');
+
 // Configuration
 const PORT = process.env.PORT || 3000;
 const API_SECRET = process.env.API_SECRET || 'smartc-secret-key-change-me';
@@ -26,7 +29,9 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: '/ws/device' });
 
 // ========== Device Store ==========
-const devices = new Map(); // deviceId -> deviceInfo
+// In-memory cache for screenshots (not persisted - too large)
+const deviceScreenshots = new Map(); // deviceId -> {image, timestamp}
+// WebSocket connections (runtime only)
 const deviceConnections = new Map(); // deviceId -> ws connection
 
 // ========== Middleware ==========
@@ -48,17 +53,22 @@ wss.on('connection', (ws, req) => {
                 case 'register':
                     // Device registration
                     deviceId = data.device_id || uuidv4();
-                    devices.set(deviceId, {
+
+                    // Save to database
+                    db.upsertDevice({
                         id: deviceId,
                         name: data.name || `SmartC-${deviceId.slice(0, 8)}`,
                         ip: data.ip || 'Unknown',
                         version: data.version || 'Unknown',
                         status: 'online',
-                        lastSeen: new Date(),
                         config: data.config || {},
                         system: data.system || {}
                     });
+
                     deviceConnections.set(deviceId, ws);
+
+                    // Log registration
+                    db.addLog(deviceId, 'connect', 'Device connected');
 
                     ws.send(JSON.stringify({
                         type: 'registered',
@@ -70,34 +80,39 @@ wss.on('connection', (ws, req) => {
                     break;
 
                 case 'heartbeat':
-                    // Update device status
-                    if (deviceId && devices.has(deviceId)) {
-                        const device = devices.get(deviceId);
-                        device.lastSeen = new Date();
-                        device.status = 'online';
-                        device.system = data.system || device.system;
-                        device.ip = data.ip || device.ip;
+                    // Update device status in database
+                    if (deviceId) {
+                        db.upsertDevice({
+                            id: deviceId,
+                            name: null, // Keep existing
+                            ip: data.ip,
+                            version: null,
+                            status: 'online',
+                            system: data.system || {}
+                        });
                     }
                     break;
 
                 case 'screenshot':
-                    // Receive screenshot from device
-                    if (deviceId && devices.has(deviceId)) {
-                        const device = devices.get(deviceId);
-                        device.screenshot = data.image; // Base64 image
-                        device.screenshotTime = new Date();
+                    // Store screenshot in memory cache (not DB - too large)
+                    if (deviceId) {
+                        deviceScreenshots.set(deviceId, {
+                            image: data.image,
+                            timestamp: new Date()
+                        });
                     }
                     break;
 
                 case 'config_updated':
                     // Device confirmed config update
                     console.log(`⚙️ Device ${deviceId} config updated`);
+                    db.addLog(deviceId, 'config', 'Config updated');
                     break;
 
                 case 'command_result':
                     // Result of command execution
                     console.log(`📋 Command result from ${deviceId}:`, data.result);
-                    // Could broadcast to dashboard clients here
+                    db.addLog(deviceId, 'command', `Command result: ${data.command}`, data.result);
                     break;
 
                 default:
@@ -112,9 +127,8 @@ wss.on('connection', (ws, req) => {
         if (deviceId) {
             console.log(`❌ Device disconnected: ${deviceId}`);
             deviceConnections.delete(deviceId);
-            if (devices.has(deviceId)) {
-                devices.get(deviceId).status = 'offline';
-            }
+            db.updateDeviceStatus(deviceId, 'offline');
+            db.addLog(deviceId, 'disconnect', 'Device disconnected');
         }
     });
 
@@ -123,17 +137,18 @@ wss.on('connection', (ws, req) => {
     });
 });
 
+
 // ========== REST API ==========
 
 // Get all devices
 app.get('/api/devices', (req, res) => {
-    const deviceList = Array.from(devices.values()).map(d => ({
+    const deviceList = db.getAllDevices().map(d => ({
         id: d.id,
         name: d.name,
         ip: d.ip,
         version: d.version,
-        status: d.status,
-        lastSeen: d.lastSeen,
+        status: deviceConnections.has(d.id) ? 'online' : d.status,
+        lastSeen: d.last_seen,
         system: d.system
     }));
     res.json({ devices: deviceList });
@@ -141,25 +156,23 @@ app.get('/api/devices', (req, res) => {
 
 // Get single device
 app.get('/api/devices/:id', (req, res) => {
-    const device = devices.get(req.params.id);
+    const device = db.getDevice(req.params.id);
     if (!device) {
         return res.status(404).json({ error: 'Device not found' });
     }
+    device.status = deviceConnections.has(device.id) ? 'online' : device.status;
     res.json(device);
 });
 
 // Get device screenshot
 app.get('/api/devices/:id/screenshot', (req, res) => {
-    const device = devices.get(req.params.id);
-    if (!device) {
-        return res.status(404).json({ error: 'Device not found' });
-    }
-    if (!device.screenshot) {
+    const screenshot = deviceScreenshots.get(req.params.id);
+    if (!screenshot) {
         return res.status(404).json({ error: 'No screenshot available' });
     }
     res.json({
-        image: device.screenshot,
-        timestamp: device.screenshotTime
+        image: screenshot.image,
+        timestamp: screenshot.timestamp
     });
 });
 
@@ -433,15 +446,22 @@ app.post('/api/devices/:id/test/speaker', (req, res) => {
 
 // Get device health
 app.get('/api/devices/:id/health', (req, res) => {
-    const device = devices.get(req.params.id);
+    const device = db.getDevice(req.params.id);
     if (!device) {
         return res.status(404).json({ error: 'Device not found' });
     }
     res.json({
-        status: device.status,
-        lastSeen: device.lastSeen,
+        status: deviceConnections.has(device.id) ? 'online' : device.status,
+        lastSeen: device.last_seen,
         system: device.system
     });
+});
+
+// Get device logs
+app.get('/api/devices/:id/logs', (req, res) => {
+    const limit = parseInt(req.query.limit) || 50;
+    const logs = db.getDeviceLogs(req.params.id, limit);
+    res.json({ logs });
 });
 
 // Dashboard route
@@ -451,27 +471,23 @@ app.get('/', (req, res) => {
 
 // Health check for server
 app.get('/health', (req, res) => {
+    const allDevices = db.getAllDevices();
     res.json({
         status: 'ok',
         devices_connected: deviceConnections.size,
-        devices_registered: devices.size,
+        devices_registered: allDevices.length,
         uptime: process.uptime()
     });
 });
 
 // ========== Cleanup ==========
-// Mark devices as offline if not seen for 60 seconds
+// Mark devices as offline and cleanup logs
 setInterval(() => {
-    const now = new Date();
-    devices.forEach((device, id) => {
-        if (device.status === 'online' && !deviceConnections.has(id)) {
-            device.status = 'offline';
-        }
-        // Mark as offline if no heartbeat for 60s
-        if (device.lastSeen && (now - device.lastSeen) > 60000) {
-            device.status = 'offline';
-        }
-    });
+    // Mark disconnected devices as offline in DB
+    db.markOfflineDevices();
+
+    // Cleanup old logs (older than 7 days)
+    db.cleanupOldLogs();
 }, 30000);
 
 // ========== Start Server ==========
@@ -481,5 +497,6 @@ server.listen(PORT, () => {
     console.log('╠════════════════════════════════════════╣');
     console.log(`║   🌐 HTTP:  http://localhost:${PORT}        ║`);
     console.log(`║   🔌 WS:    ws://localhost:${PORT}/ws/device ║`);
+    console.log(`║   📦 DB:    SQLite (data/smartc.db)     ║`);
     console.log('╚════════════════════════════════════════╝');
 });
