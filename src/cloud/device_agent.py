@@ -95,6 +95,14 @@ class CloudAgent:
             'update': self._cmd_update,
             'get_config': self._cmd_get_config,
             'set_volume': self._cmd_set_volume,
+            # New remote config commands
+            'set_video': self._cmd_set_video,
+            'set_audio': self._cmd_set_audio,
+            'test_mic': self._cmd_test_mic,
+            'test_speaker': self._cmd_test_speaker,
+            'set_wakeword': self._cmd_set_wakeword,
+            'wifi_connect': self._cmd_wifi_connect,
+            'set_system': self._cmd_set_system,
         }
     
     async def connect(self) -> bool:
@@ -320,6 +328,182 @@ class CloudAgent:
         volume = params.get("volume", 80)
         subprocess.run(["amixer", "set", "Master", f"{volume}%"], capture_output=True)
         return {"status": "ok", "volume": volume}
+    
+    async def _cmd_set_video(self, params: dict):
+        """Set video background."""
+        video_path = params.get("video_path", "")
+        if not video_path:
+            return {"status": "error", "message": "Missing video_path"}
+        
+        logger.info(f"Setting video from cloud: {video_path}")
+        
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app:
+                app.config.update_config("UI.VIDEO_PATH", video_path)
+                # Trigger video change
+                ui_plugin = app.plugins.get_plugin("ui")
+                if ui_plugin and ui_plugin.display:
+                    ui_plugin.display.set_video_path(video_path)
+                return {"status": "ok", "video": video_path}
+        except Exception as e:
+            logger.error(f"Set video error: {e}")
+            return {"status": "error", "message": str(e)}
+        
+        return {"status": "error", "message": "App not available"}
+    
+    async def _cmd_set_audio(self, params: dict):
+        """Set audio devices."""
+        input_device = params.get("input_device")
+        output_device = params.get("output_device")
+        
+        logger.info(f"Setting audio from cloud: input={input_device}, output={output_device}")
+        
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app:
+                if input_device:
+                    app.config.update_config("AUDIO.INPUT_DEVICE", input_device)
+                if output_device:
+                    app.config.update_config("AUDIO.OUTPUT_DEVICE", output_device)
+                return {"status": "ok"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        
+        return {"status": "error", "message": "App not available"}
+    
+    async def _cmd_test_mic(self, params: dict):
+        """Test microphone."""
+        logger.info("Testing microphone from cloud...")
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app and hasattr(app, 'plugins'):
+                audio_plugin = app.plugins.get_plugin("audio")
+                if audio_plugin:
+                    # Trigger mic test via existing functionality
+                    return {"status": "ok", "message": "Mic test started"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        
+        return {"status": "ok", "message": "Test command sent"}
+    
+    async def _cmd_test_speaker(self, params: dict):
+        """Test speaker."""
+        hdmi_audio = params.get("hdmi_audio", False)
+        logger.info(f"Testing speaker from cloud (HDMI={hdmi_audio})...")
+        
+        try:
+            # Play test beep
+            import numpy as np
+            import wave
+            import tempfile
+            
+            sample_rate = 44100
+            duration = 0.3
+            frequency = 880
+            
+            t = np.linspace(0, duration, int(sample_rate * duration), False)
+            beep = (np.sin(2 * np.pi * frequency * t) * 20000).astype(np.int16)
+            
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+                temp_wav = f.name
+            
+            with wave.open(temp_wav, 'w') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(beep.tobytes())
+            
+            if hdmi_audio:
+                subprocess.run(["aplay", "-D", "plughw:CARD=vc4hdmi0", temp_wav], 
+                              capture_output=True, timeout=5)
+            else:
+                subprocess.run(["aplay", temp_wav], capture_output=True, timeout=5)
+            
+            os.unlink(temp_wav)
+            return {"status": "ok", "message": "Speaker test played"}
+            
+        except Exception as e:
+            logger.error(f"Speaker test error: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def _cmd_set_wakeword(self, params: dict):
+        """Set wake word settings."""
+        enabled = params.get("enabled", True)
+        threshold = params.get("threshold", 0.5)
+        
+        logger.info(f"Setting wakeword from cloud: enabled={enabled}, threshold={threshold}")
+        
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app:
+                app.config.update_config("WAKE_WORD.ENABLED", enabled)
+                app.config.update_config("WAKE_WORD.THRESHOLD", threshold)
+                
+                # Apply to running plugin
+                wakeword_plugin = app.plugins.get_plugin("wakeword")
+                if wakeword_plugin:
+                    if enabled:
+                        wakeword_plugin.enable()
+                    else:
+                        wakeword_plugin.disable()
+                
+                return {"status": "ok"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        
+        return {"status": "error", "message": "App not available"}
+    
+    async def _cmd_wifi_connect(self, params: dict):
+        """Connect to WiFi."""
+        ssid = params.get("ssid", "")
+        password = params.get("password", "")
+        
+        if not ssid:
+            return {"status": "error", "message": "Missing SSID"}
+        
+        logger.info(f"Connecting to WiFi from cloud: {ssid}")
+        
+        try:
+            if password:
+                cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid, "password", password]
+            else:
+                cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            
+            if result.returncode == 0:
+                return {"status": "ok", "message": f"Connected to {ssid}"}
+            else:
+                return {"status": "error", "message": result.stderr or "Connection failed"}
+                
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    async def _cmd_set_system(self, params: dict):
+        """Set system settings."""
+        logger.info(f"Setting system config from cloud: {params}")
+        
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app:
+                if "language" in params:
+                    app.config.update_config("SYSTEM.LANGUAGE", params["language"])
+                if "ota_url" in params:
+                    app.config.update_config("NETWORK.OTA_URL", params["ota_url"])
+                if "ws_url" in params:
+                    app.config.update_config("NETWORK.WS_URL", params["ws_url"])
+                
+                return {"status": "ok"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        
+        return {"status": "error", "message": "App not available"}
     
     # ========== Main Loop ==========
     

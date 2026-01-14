@@ -215,6 +215,222 @@ app.post('/api/devices/:id/config', (req, res) => {
     res.json({ message: 'Config update sent to device' });
 });
 
+// Get device full config
+app.get('/api/devices/:id/config', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+    const device = devices.get(deviceId);
+
+    if (!device) {
+        return res.status(404).json({ error: 'Device not found' });
+    }
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    // Request config from device
+    ws.send(JSON.stringify({ type: 'get_config' }));
+
+    // Return cached config for now
+    res.json({
+        config: device.config || {},
+        message: 'Config requested from device'
+    });
+});
+
+// ========== Remote Settings API ==========
+
+// Get Audio devices
+app.post('/api/devices/:id/audio/devices', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    ws.send(JSON.stringify({ type: 'get_audio_devices' }));
+    res.json({ message: 'Audio devices requested' });
+});
+
+// Set Audio device
+app.post('/api/devices/:id/audio/set', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    const { input_device, output_device } = req.body;
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'set_audio',
+        params: { input_device, output_device }
+    }));
+
+    res.json({ message: 'Audio settings sent' });
+});
+
+// Get video list
+app.post('/api/devices/:id/videos', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    ws.send(JSON.stringify({ type: 'get_videos' }));
+    res.json({ message: 'Videos requested' });
+});
+
+// Set video background
+app.post('/api/devices/:id/video/set', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    const { video_path } = req.body;
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'set_video',
+        params: { video_path }
+    }));
+
+    res.json({ message: 'Video setting sent' });
+});
+
+// Get WiFi networks
+app.post('/api/devices/:id/wifi/scan', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    ws.send(JSON.stringify({ type: 'wifi_scan' }));
+    res.json({ message: 'WiFi scan requested' });
+});
+
+// Connect to WiFi
+app.post('/api/devices/:id/wifi/connect', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    const { ssid, password } = req.body;
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'wifi_connect',
+        params: { ssid, password }
+    }));
+
+    res.json({ message: 'WiFi connect command sent' });
+});
+
+// Get saved WiFi networks
+app.get('/api/devices/:id/wifi/saved', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    ws.send(JSON.stringify({ type: 'get_saved_wifi' }));
+    res.json({ message: 'Saved WiFi requested' });
+});
+
+// Wake Word settings
+app.post('/api/devices/:id/wakeword', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    const { enabled, threshold } = req.body;
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'set_wakeword',
+        params: { enabled, threshold }
+    }));
+
+    res.json({ message: 'Wakeword settings sent' });
+});
+
+// System settings (language, URLs)
+app.post('/api/devices/:id/system', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    const settings = req.body;
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'set_system',
+        params: settings
+    }));
+
+    res.json({ message: 'System settings sent' });
+});
+
+// Test microphone
+app.post('/api/devices/:id/test/mic', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'test_mic',
+        params: {}
+    }));
+
+    res.json({ message: 'Mic test started' });
+});
+
+// Test speaker
+app.post('/api/devices/:id/test/speaker', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    const { hdmi_audio } = req.body;
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'test_speaker',
+        params: { hdmi_audio: hdmi_audio || false }
+    }));
+
+    res.json({ message: 'Speaker test started' });
+});
+
 // Get device health
 app.get('/api/devices/:id/health', (req, res) => {
     const device = devices.get(req.params.id);
