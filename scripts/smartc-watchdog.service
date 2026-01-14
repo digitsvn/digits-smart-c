@@ -1,0 +1,19 @@
+[Unit]
+Description=Smart C AI Watchdog Service
+After=network.target smartc.service
+Wants=smartc.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/smartc-watchdog
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smartc-watchdog
+
+[Install]
+WantedBy=multi-user.target

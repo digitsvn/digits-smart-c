@@ -547,6 +547,179 @@ class WiFiManager:
         """Kiểm tra Internet bất đồng bộ"""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.check_internet_connection)
+    
+    # ========== MULTIPLE WIFI PROFILES ==========
+    
+    def get_saved_networks(self) -> List[str]:
+        """
+        Lấy danh sách WiFi networks đã lưu.
+        
+        Returns:
+            List[str]: Danh sách SSIDs đã lưu
+        """
+        saved = []
+        try:
+            result = self._run_nmcli(["-t", "-f", "NAME,TYPE", "connection", "show"])
+            
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    parts = line.split(':')
+                    if len(parts) >= 2 and parts[1] == '802-11-wireless':
+                        ssid = parts[0]
+                        # Skip hotspot connection
+                        if ssid != self._hotspot_connection_name:
+                            saved.append(ssid)
+            
+            logger.info(f"Saved WiFi networks: {saved}")
+        except Exception as e:
+            logger.error(f"Error getting saved networks: {e}")
+        
+        return saved
+    
+    def delete_saved_network(self, ssid: str) -> bool:
+        """
+        Xóa một WiFi profile đã lưu.
+        
+        Args:
+            ssid: Tên mạng cần xóa
+            
+        Returns:
+            bool: True nếu xóa thành công
+        """
+        try:
+            result = self._run_nmcli(["connection", "delete", ssid])
+            if result.returncode == 0:
+                logger.info(f"Deleted saved network: {ssid}")
+                return True
+            else:
+                logger.warning(f"Failed to delete network {ssid}: {result.stderr}")
+                return False
+        except Exception as e:
+            logger.error(f"Error deleting network: {e}")
+            return False
+    
+    def set_network_priority(self, ssid: str, priority: int) -> bool:
+        """
+        Đặt priority cho một WiFi network (cao hơn = ưu tiên hơn).
+        
+        Args:
+            ssid: Tên mạng
+            priority: Số ưu tiên (0-999, mặc định 0)
+            
+        Returns:
+            bool: True nếu thành công
+        """
+        try:
+            result = self._run_nmcli([
+                "connection", "modify", ssid,
+                "connection.autoconnect-priority", str(priority)
+            ])
+            if result.returncode == 0:
+                logger.info(f"Set priority {priority} for {ssid}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error setting priority: {e}")
+            return False
+    
+    async def auto_connect_saved_networks(self) -> bool:
+        """
+        Thử kết nối tự động vào các mạng đã lưu theo thứ tự priority.
+        Dùng khi mất kết nối và cần fallback.
+        
+        Returns:
+            bool: True nếu kết nối được một mạng
+        """
+        saved = self.get_saved_networks()
+        
+        if not saved:
+            logger.info("No saved networks to try")
+            return False
+        
+        logger.info(f"Trying to auto-connect to saved networks: {saved}")
+        
+        for ssid in saved:
+            try:
+                logger.info(f"Attempting to connect to: {ssid}")
+                result = self._run_nmcli([
+                    "connection", "up", ssid,
+                    "ifname", self._wifi_interface
+                ], timeout=30)
+                
+                if result.returncode == 0:
+                    logger.info(f"Connected to saved network: {ssid}")
+                    self._notify_state_change(WiFiState.CONNECTED)
+                    return True
+                else:
+                    logger.debug(f"Failed to connect to {ssid}: {result.stderr}")
+            except Exception as e:
+                logger.debug(f"Error connecting to {ssid}: {e}")
+        
+        logger.warning("Failed to connect to any saved network")
+        return False
+    
+    # ========== ETHERNET PRIORITY ==========
+    
+    def is_ethernet_connected(self) -> bool:
+        """Kiểm tra có kết nối Ethernet không."""
+        try:
+            result = self._run_nmcli(["-t", "-f", "DEVICE,TYPE,STATE", "device"])
+            
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    parts = line.split(':')
+                    if len(parts) >= 3:
+                        device, dev_type, state = parts[0], parts[1], parts[2]
+                        if dev_type == 'ethernet' and state == 'connected':
+                            logger.info(f"Ethernet connected: {device}")
+                            return True
+            return False
+        except Exception:
+            return False
+    
+    def get_active_connection_type(self) -> str:
+        """
+        Lấy loại kết nối đang active.
+        
+        Returns:
+            str: "ethernet", "wifi", "hotspot", hoặc "none"
+        """
+        try:
+            # Check ethernet first (priority)
+            if self.is_ethernet_connected():
+                return "ethernet"
+            
+            # Check WiFi
+            if self.check_wifi_connection():
+                if self.is_hotspot_active():
+                    return "hotspot"
+                return "wifi"
+            
+            return "none"
+        except Exception:
+            return "none"
+    
+    def ensure_best_connection(self) -> str:
+        """
+        Đảm bảo dùng kết nối tốt nhất (Ethernet > WiFi > Hotspot).
+        
+        Returns:
+            str: Loại kết nối đang dùng
+        """
+        conn_type = self.get_active_connection_type()
+        
+        if conn_type == "ethernet":
+            # Ethernet is best, ensure WiFi hotspot is off
+            if self.is_hotspot_active():
+                self.stop_hotspot()
+            return "ethernet"
+        
+        if conn_type == "wifi":
+            return "wifi"
+        
+        # No connection, try saved networks
+        # Note: This is sync, for async use auto_connect_saved_networks
+        return conn_type
 
 
 # Factory function

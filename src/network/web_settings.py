@@ -1082,9 +1082,13 @@ class WebSettingsServer:
         self.app.router.add_post('/api/test/chat', self._handle_test_chat)
         # Health & Setup
         self.app.router.add_get('/api/health', self._handle_health)
+        self.app.router.add_get('/api/metrics', self._handle_metrics)
         self.app.router.add_get('/api/setup/status', self._handle_setup_status)
         self.app.router.add_post('/api/setup/complete', self._handle_setup_complete)
         self.app.router.add_get('/setup', self._handle_setup_wizard)
+        # WiFi Management (Phase 3)
+        self.app.router.add_get('/api/wifi/saved', self._handle_wifi_saved)
+        self.app.router.add_delete('/api/wifi/saved', self._handle_wifi_delete)
     
     async def _handle_index(self, request):
         """Trang chính."""
@@ -2341,12 +2345,80 @@ class WebSettingsServer:
         except Exception:
             pass
         
+        # Check 8: Network status
+        try:
+            from src.network.network_status import is_connected, get_current_ip
+            from src.network.wifi_manager import get_wifi_manager
+            
+            connected = is_connected()
+            ip = get_current_ip() if connected else None
+            
+            wifi = get_wifi_manager()
+            hotspot_active = wifi.is_hotspot_active() if wifi else False
+            current_ssid = wifi.get_current_ssid() if wifi else None
+            
+            health["checks"]["network"] = {
+                "status": "ok" if connected else ("warning" if hotspot_active else "error"),
+                "connected": connected,
+                "ip": ip,
+                "ssid": current_ssid,
+                "hotspot_active": hotspot_active
+            }
+        except Exception as e:
+            health["checks"]["network"] = {"status": "error", "message": str(e)}
+        
+        # Check 9: Wake Word status
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app and hasattr(app, 'plugins'):
+                wakeword_plugin = app.plugins.get_plugin("wakeword")
+                if wakeword_plugin:
+                    enabled = getattr(wakeword_plugin, 'enabled', False)
+                    listening = getattr(wakeword_plugin, 'is_listening', lambda: False)()
+                    health["checks"]["wakeword"] = {
+                        "status": "ok" if enabled else "disabled",
+                        "enabled": enabled,
+                        "listening": listening
+                    }
+                else:
+                    health["checks"]["wakeword"] = {"status": "disabled", "enabled": False}
+        except Exception as e:
+            health["checks"]["wakeword"] = {"status": "error", "message": str(e)}
+        
+        # Check 10: Device State
+        try:
+            from src.application import Application
+            app = Application._instance
+            if app:
+                state = app.get_device_state()
+                health["checks"]["device_state"] = {
+                    "status": "ok",
+                    "state": str(state.name) if hasattr(state, 'name') else str(state),
+                    "audio_channel_opened": app.is_audio_channel_opened(),
+                    "keep_listening": app.is_keep_listening()
+                }
+        except Exception as e:
+            health["checks"]["device_state"] = {"status": "error", "message": str(e)}
+        
+        # Add version info
+        try:
+            version_file = get_project_root() / "VERSION"
+            if version_file.exists():
+                health["version"] = version_file.read_text().strip()
+            else:
+                health["version"] = "unknown"
+        except Exception:
+            health["version"] = "unknown"
+        
         # Overall status
         statuses = [c.get("status", "ok") for c in health["checks"].values()]
         if "error" in statuses:
             health["status"] = "unhealthy"
         elif "warning" in statuses:
             health["status"] = "degraded"
+        else:
+            health["status"] = "healthy"
         
         return web.json_response(health)
     
@@ -2362,6 +2434,139 @@ class WebSettingsServer:
             return f"{hours}h {minutes}m {seconds}s"
         except:
             return "Unknown"
+    
+    async def _handle_metrics(self, request):
+        """
+        System metrics endpoint (Prometheus-style format).
+        Useful for monitoring and dashboards.
+        """
+        import psutil
+        import os
+        
+        metrics = []
+        
+        try:
+            # CPU metrics
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            cpu_per_core = psutil.cpu_percent(percpu=True, interval=0.1)
+            
+            metrics.append(f"# HELP smartc_cpu_percent CPU usage percentage")
+            metrics.append(f"# TYPE smartc_cpu_percent gauge")
+            metrics.append(f"smartc_cpu_percent {cpu_percent}")
+            
+            for i, core in enumerate(cpu_per_core):
+                metrics.append(f"smartc_cpu_core_percent{{core=\"{i}\"}} {core}")
+            
+            # Memory metrics
+            mem = psutil.virtual_memory()
+            metrics.append(f"# HELP smartc_memory_percent Memory usage percentage")
+            metrics.append(f"# TYPE smartc_memory_percent gauge")
+            metrics.append(f"smartc_memory_percent {mem.percent}")
+            metrics.append(f"smartc_memory_used_bytes {mem.used}")
+            metrics.append(f"smartc_memory_total_bytes {mem.total}")
+            
+            # Disk metrics
+            disk = psutil.disk_usage('/')
+            metrics.append(f"# HELP smartc_disk_percent Disk usage percentage")
+            metrics.append(f"# TYPE smartc_disk_percent gauge")
+            metrics.append(f"smartc_disk_percent {disk.percent}")
+            metrics.append(f"smartc_disk_free_bytes {disk.free}")
+            
+            # Temperature (Raspberry Pi)
+            try:
+                temp_file = "/sys/class/thermal/thermal_zone0/temp"
+                if os.path.exists(temp_file):
+                    with open(temp_file) as f:
+                        cpu_temp = int(f.read().strip()) / 1000.0
+                    metrics.append(f"# HELP smartc_cpu_temp_celsius CPU temperature")
+                    metrics.append(f"# TYPE smartc_cpu_temp_celsius gauge")
+                    metrics.append(f"smartc_cpu_temp_celsius {cpu_temp:.1f}")
+            except Exception:
+                pass
+            
+            # App metrics
+            try:
+                p = psutil.Process(os.getpid())
+                uptime_sec = time.time() - p.create_time()
+                metrics.append(f"# HELP smartc_uptime_seconds App uptime in seconds")
+                metrics.append(f"# TYPE smartc_uptime_seconds counter")
+                metrics.append(f"smartc_uptime_seconds {int(uptime_sec)}")
+                
+                proc_mem = p.memory_percent()
+                metrics.append(f"smartc_process_memory_percent {proc_mem:.1f}")
+            except Exception:
+                pass
+            
+            # Network status
+            try:
+                from src.network.network_status import is_connected
+                connected = 1 if is_connected() else 0
+                metrics.append(f"# HELP smartc_network_connected Network connection status")
+                metrics.append(f"# TYPE smartc_network_connected gauge")
+                metrics.append(f"smartc_network_connected {connected}")
+            except Exception:
+                pass
+            
+            # WebSocket status
+            try:
+                from src.application import Application
+                app = Application._instance
+                ws_connected = 1 if (app and app.is_audio_channel_opened()) else 0
+                metrics.append(f"# HELP smartc_websocket_connected WebSocket connection status")
+                metrics.append(f"# TYPE smartc_websocket_connected gauge")
+                metrics.append(f"smartc_websocket_connected {ws_connected}")
+            except Exception:
+                pass
+            
+        except Exception as e:
+            metrics.append(f"# Error collecting metrics: {e}")
+        
+        return web.Response(
+            text="\n".join(metrics),
+            content_type="text/plain; version=0.0.4; charset=utf-8"
+        )
+    
+    async def _handle_wifi_saved(self, request):
+        """Lấy danh sách WiFi networks đã lưu."""
+        try:
+            from src.network.wifi_manager import get_wifi_manager
+            
+            wifi = get_wifi_manager()
+            saved = wifi.get_saved_networks()
+            current = wifi.get_current_ssid()
+            
+            networks = []
+            for ssid in saved:
+                networks.append({
+                    "ssid": ssid,
+                    "connected": ssid == current
+                })
+            
+            return web.json_response({
+                "networks": networks,
+                "current": current
+            })
+        except Exception as e:
+            return web.json_response({"error": str(e), "networks": []})
+    
+    async def _handle_wifi_delete(self, request):
+        """Xóa một WiFi network đã lưu."""
+        try:
+            data = await request.json()
+            ssid = data.get("ssid", "")
+            
+            if not ssid:
+                return web.json_response({"success": False, "message": "Thiếu SSID"})
+            
+            from src.network.wifi_manager import get_wifi_manager
+            
+            wifi = get_wifi_manager()
+            if wifi.delete_saved_network(ssid):
+                return web.json_response({"success": True, "message": f"Đã xóa {ssid}"})
+            else:
+                return web.json_response({"success": False, "message": f"Không thể xóa {ssid}"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
     
     # ========== SETUP WIZARD ==========
     async def _handle_setup_status(self, request):
