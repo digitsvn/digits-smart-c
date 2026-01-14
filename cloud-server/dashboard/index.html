@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart C AI - Remote Management</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(56, 239, 125, 0.2);
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #38ef7d;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Layout */
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 80px);
+        }
+        
+        /* Device List */
+        .device-list {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .device-list h2 {
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .device-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .device-card:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+        
+        .device-card.active {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            border-color: #667eea;
+        }
+        
+        .device-card .name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .device-card .info {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .device-card .status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        
+        .device-card .status.online { color: #38ef7d; }
+        .device-card .status.offline { color: #f5576c; }
+        
+        /* Main Panel */
+        .main-panel {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            gap: 20px;
+        }
+        
+        /* Screen Viewer */
+        .screen-viewer {
+            background: rgba(0,0,0,0.3);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .screen-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .screen-header h2 {
+            font-size: 18px;
+        }
+        
+        .screen-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: #fff;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        
+        .screen-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            min-height: 400px;
+        }
+        
+        .screen-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .screen-placeholder {
+            color: #666;
+            text-align: center;
+        }
+        
+        .screen-placeholder .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .control-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .control-card h3 {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 15px;
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        /* No Device Selected */
+        .no-device {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: #666;
+        }
+        
+        .no-device .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+        
+        /* Refresh indicator */
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(102, 126, 234, 0.9);
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .refresh-indicator.active {
+            display: block;
+            animation: fadeInOut 1s ease;
+        }
+        
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            .device-list {
+                max-height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">🤖 Smart C AI - Remote Management</div>
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            <span id="serverStatus">Đang kết nối...</span>
+        </div>
+    </header>
+    
+    <div class="container">
+        <!-- Device List -->
+        <div class="device-list">
+            <h2>
+                <span>📱 Thiết bị</span>
+                <button class="btn btn-secondary" onclick="refreshDevices()" style="padding: 5px 10px; font-size: 12px;">↻</button>
+            </h2>
+            <div id="deviceList">
+                <p style="color: #666; text-align: center; padding: 20px;">Đang tải...</p>
+            </div>
+        </div>
+        
+        <!-- Main Panel -->
+        <div class="main-panel" id="mainPanel">
+            <div class="no-device">
+                <div class="icon">📱</div>
+                <h2>Chọn một thiết bị</h2>
+                <p style="margin-top: 10px; color: #888;">Chọn thiết bị từ danh sách bên trái để xem và quản lý</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="refresh-indicator" id="refreshIndicator">Đang cập nhật...</div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let selectedDevice = null;
+        let autoRefreshInterval = null;
+        
+        // ========== API Functions ==========
+        async function fetchDevices() {
+            try {
+                const resp = await fetch(`${API_BASE}/api/devices`);
+                const data = await resp.json();
+                return data.devices || [];
+            } catch (e) {
+                console.error('Error fetching devices:', e);
+                return [];
+            }
+        }
+        
+        async function fetchScreenshot(deviceId) {
+            try {
+                const resp = await fetch(`${API_BASE}/api/devices/${deviceId}/screenshot`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    return data.image;
+                }
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }
+        
+        async function requestScreenshot(deviceId) {
+            try {
+                await fetch(`${API_BASE}/api/devices/${deviceId}/screenshot/request`, { method: 'POST' });
+            } catch (e) {
+                console.error('Error requesting screenshot:', e);
+            }
+        }
+        
+        async function sendCommand(deviceId, command, params = {}) {
+            try {
+                const resp = await fetch(`${API_BASE}/api/devices/${deviceId}/command`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command, params })
+                });
+                return await resp.json();
+            } catch (e) {
+                console.error('Error sending command:', e);
+                return { error: e.message };
+            }
+        }
+        
+        // ========== UI Functions ==========
+        async function refreshDevices() {
+            const devices = await fetchDevices();
+            const container = document.getElementById('deviceList');
+            
+            if (devices.length === 0) {
+                container.innerHTML = `
+                    <p style="color: #666; text-align: center; padding: 20px;">
+                        Chưa có thiết bị nào kết nối
+                    </p>
+                `;
+                document.getElementById('serverStatus').textContent = '0 thiết bị';
+                return;
+            }
+            
+            const onlineCount = devices.filter(d => d.status === 'online').length;
+            document.getElementById('serverStatus').textContent = `${onlineCount}/${devices.length} online`;
+            
+            container.innerHTML = devices.map(d => `
+                <div class="device-card ${selectedDevice === d.id ? 'active' : ''}" 
+                     onclick="selectDevice('${d.id}')">
+                    <div class="name">${d.name}</div>
+                    <div class="info">${d.ip || 'Unknown IP'}</div>
+                    <div class="status ${d.status}">
+                        <span>${d.status === 'online' ? '🟢' : '🔴'}</span>
+                        <span>${d.status === 'online' ? 'Online' : 'Offline'}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function selectDevice(deviceId) {
+            selectedDevice = deviceId;
+            
+            // Update UI
+            document.querySelectorAll('.device-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // Fetch device details
+            const devices = await fetchDevices();
+            const device = devices.find(d => d.id === deviceId);
+            
+            if (!device) return;
+            
+            // Request fresh screenshot
+            await requestScreenshot(deviceId);
+            
+            // Wait a bit then fetch screenshot
+            setTimeout(async () => {
+                await renderDevicePanel(device);
+            }, 500);
+            
+            // Start auto-refresh for this device
+            startAutoRefresh(deviceId);
+        }
+        
+        async function renderDevicePanel(device) {
+            const screenshot = await fetchScreenshot(device.id);
+            const system = device.system || {};
+            
+            const mainPanel = document.getElementById('mainPanel');
+            mainPanel.innerHTML = `
+                <div class="screen-viewer">
+                    <div class="screen-header">
+                        <h2>📺 ${device.name}</h2>
+                        <div class="screen-controls">
+                            <button class="btn btn-secondary" onclick="refreshScreen('${device.id}')">↻ Refresh</button>
+                            <button class="btn btn-primary" onclick="openConfig('${device.id}')">⚙️ Cấu hình</button>
+                        </div>
+                    </div>
+                    <div class="screen-container">
+                        ${screenshot 
+                            ? `<img src="${screenshot}" alt="Device Screen" id="deviceScreen">`
+                            : `<div class="screen-placeholder">
+                                <div class="icon">📷</div>
+                                <p>Đang chờ screenshot...</p>
+                                <p style="font-size: 12px; margin-top: 10px;">Thiết bị cần gửi ảnh màn hình</p>
+                               </div>`
+                        }
+                    </div>
+                </div>
+                
+                <div class="control-panel">
+                    <div class="control-card">
+                        <h3>💻 Hệ thống</h3>
+                        <div class="stat-value">${system.cpu_percent || 0}%</div>
+                        <div class="stat-label">CPU Usage</div>
+                    </div>
+                    <div class="control-card">
+                        <h3>🧠 Bộ nhớ</h3>
+                        <div class="stat-value">${system.memory_percent || 0}%</div>
+                        <div class="stat-label">RAM Usage</div>
+                    </div>
+                    <div class="control-card">
+                        <h3>🌡️ Nhiệt độ</h3>
+                        <div class="stat-value">${system.cpu_temp || 'N/A'}°C</div>
+                        <div class="stat-label">CPU Temp</div>
+                    </div>
+                    <div class="control-card">
+                        <h3>🎛️ Điều khiển</h3>
+                        <div class="action-buttons">
+                            <button class="btn btn-secondary" onclick="sendDeviceCommand('${device.id}', 'restart')">🔄 Restart App</button>
+                            <button class="btn btn-danger" onclick="sendDeviceCommand('${device.id}', 'reboot')">⚡ Reboot Pi</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function refreshScreen(deviceId) {
+            document.getElementById('refreshIndicator').classList.add('active');
+            await requestScreenshot(deviceId);
+            
+            setTimeout(async () => {
+                const screenshot = await fetchScreenshot(deviceId);
+                if (screenshot) {
+                    const img = document.getElementById('deviceScreen');
+                    if (img) {
+                        img.src = screenshot;
+                    }
+                }
+                document.getElementById('refreshIndicator').classList.remove('active');
+            }, 1000);
+        }
+        
+        function startAutoRefresh(deviceId) {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            // Refresh screenshot every 5 seconds
+            autoRefreshInterval = setInterval(async () => {
+                if (selectedDevice === deviceId) {
+                    await requestScreenshot(deviceId);
+                    setTimeout(async () => {
+                        const screenshot = await fetchScreenshot(deviceId);
+                        if (screenshot) {
+                            const img = document.getElementById('deviceScreen');
+                            if (img) {
+                                img.src = screenshot;
+                            }
+                        }
+                    }, 500);
+                }
+            }, 5000);
+        }
+        
+        async function sendDeviceCommand(deviceId, command) {
+            if (command === 'reboot') {
+                if (!confirm('Bạn có chắc muốn reboot thiết bị này?')) return;
+            }
+            
+            const result = await sendCommand(deviceId, command);
+            alert(result.message || 'Đã gửi lệnh');
+        }
+        
+        function openConfig(deviceId) {
+            // TODO: Open config modal
+            alert('Tính năng cấu hình từ xa sẽ được thêm sau!');
+        }
+        
+        // ========== Init ==========
+        refreshDevices();
+        setInterval(refreshDevices, 10000); // Refresh device list every 10s
+    </script>
+</body>
+</html>

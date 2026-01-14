@@ -195,6 +195,9 @@ class Application:
             # Kết nối WebSocket (chỉ sau khi đã có mạng)
             logger.info("Đang kết nối WebSocket...")
             self.spawn(self._auto_connect_protocol(), "auto-connect-protocol")
+            
+            # Khởi động Cloud Agent (Remote Management)
+            await self._start_cloud_agent()
             # Chờ dừng
             await self._wait_shutdown()
             return 0
@@ -570,6 +573,36 @@ class Application:
                 logger.info(f"Updated GUI network info: mode={mode}, ip={ip}")
         except Exception as e:
             logger.warning(f"Failed to update GUI network info: {e}")
+
+    async def _start_cloud_agent(self) -> None:
+        """
+        Khởi động Cloud Agent để quản lý từ xa.
+        Đọc URL từ config, nếu có thì kết nối.
+        """
+        try:
+            # Đọc cloud server URL từ config
+            cloud_url = self.config.get_config("CLOUD.SERVER_URL", "")
+            
+            if not cloud_url:
+                logger.info("Cloud Agent: No server URL configured, skipping")
+                return
+            
+            device_name = self.config.get_config("CLOUD.DEVICE_NAME", None)
+            
+            logger.info(f"Starting Cloud Agent -> {cloud_url}")
+            
+            from src.cloud import start_cloud_agent
+            await start_cloud_agent(
+                server_url=cloud_url,
+                device_name=device_name
+            )
+            
+            logger.info("Cloud Agent started successfully")
+            
+        except ImportError:
+            logger.warning("Cloud Agent: websockets library not installed")
+        except Exception as e:
+            logger.warning(f"Cloud Agent failed to start: {e}")
 
     async def _monitor_network_status(self) -> None:
         """
