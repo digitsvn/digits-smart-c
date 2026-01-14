@@ -1453,13 +1453,19 @@ class WebSettingsServer:
         """Cài đặt slideshow."""
         try:
             data = await request.json()
-            interval = int(data.get("interval", 5000))
-            images = data.get("images", [])
+            
+            # Fix interval unit: JS sends seconds, Config needs ms
+            raw_interval = int(data.get("interval", 5))
+            if raw_interval < 100: 
+                interval = raw_interval * 1000
+            else:
+                interval = raw_interval
+            
+            # JS sends 'urls', but we used to look for 'images'
+            images = data.get("urls", []) or data.get("images", [])
             
             # Convert URLs back to paths if needed, or assume they are paths/names
             # Frontend sends URLs like /assets/images/slideshow/name.jpg
-            # We need to extract filename or store full path?
-            # GUI Display expects paths.
             
             # Clean up URLs to Paths
             # Input: /assets/images/slideshow/filename.jpg (or encoded)
