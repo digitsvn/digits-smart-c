@@ -127,6 +127,12 @@ class Application:
                 from src.network.web_settings import start_web_settings
                 from src.utils.resource_finder import get_project_root
                 
+                # Helper để ẩn overlay non-blocking
+                async def _hide_overlay_delayed(delay: int):
+                    await asyncio.sleep(delay)
+                    await self._update_gui_network_info("", "hidden", "")
+                    logger.info("Đã ẩn network overlay (auto-hide)")
+
                 if is_connected():
                     # ========== CÓ MẠNG ==========
                     await start_web_settings(port=8080)
@@ -138,14 +144,9 @@ class Application:
                     url = f"http://{ip}:8080"
                     qr_path_str = str(qr_path) if generate_qr_code(url, qr_path) else ""
                     
-                    # Hiển thị IP overlay 15 giây
+                    # Hiển thị IP overlay và auto-hide sau 10s (non-blocking)
                     await self._update_gui_network_info(ip, "connected", qr_path_str)
-                    logger.info(f"Hiển thị IP overlay 15 giây...")
-                    await asyncio.sleep(15)
-                    
-                    # Ẩn overlay
-                    await self._update_gui_network_info("", "hidden", "")
-                    logger.info("Đã ẩn network overlay")
+                    self.spawn(_hide_overlay_delayed(10), "hide-overlay-startup")
                     
                 else:
                     # ========== KHÔNG CÓ MẠNG ==========
@@ -184,14 +185,9 @@ class Application:
                         url = f"http://{new_ip}:8080"
                         qr_path_str = str(qr_path) if generate_qr_code(url, qr_path) else ""
                         
-                        # Hiển thị IP mới overlay 15 giây
+                        # Hiển thị IP mới overlay và auto-hide sau 15s (non-blocking)
                         await self._update_gui_network_info(new_ip, "connected", qr_path_str)
-                        logger.info(f"Hiển thị IP mới overlay 15 giây...")
-                        await asyncio.sleep(15)
-                        
-                        # Ẩn overlay
-                        await self._update_gui_network_info("", "hidden", "")
-                        logger.info("Đã ẩn network overlay")
+                        self.spawn(_hide_overlay_delayed(15), "hide-overlay-setup")
                     
             except Exception as e:
                 logger.warning(f"Network setup error: {e}")
