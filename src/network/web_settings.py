@@ -532,7 +532,7 @@ DASHBOARD_HTML = """
                 images.forEach(img => {
                     const div = document.createElement('div');
                     div.className = 'gallery-item';
-                    const safeName = img.name.replace(/'/g, "\\'");
+                    const safeName = img.name.replace(/'/g, "\\\\'");
                     div.innerHTML = `
                         <img src="${img.url}" onclick="toggleImageSelection(this.parentElement, '${img.url}')">
                         <div class="check-icon">✓</div>
