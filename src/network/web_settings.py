@@ -1635,12 +1635,14 @@ class WebSettingsServer:
             logger.info(f"Connecting to WiFi: {ssid}")
             
             # Dùng nmcli để kết nối
+            # Dùng nmcli để kết nối
             if password:
                 cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid, "password", password]
             else:
                 cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid]
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            # Tăng timeout lên 60s để an toàn
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             
             if result.returncode == 0:
                 logger.info(f"Connected to WiFi: {ssid}")
@@ -1648,10 +1650,26 @@ class WebSettingsServer:
             else:
                 error = result.stderr or result.stdout or "Unknown error"
                 logger.error(f"WiFi connect failed: {error}")
-                return web.json_response({"success": False, "message": f"❌ {error[:80]}"})
+                
+                # FALLBACK: Bật lại Hotspot nếu kết nối thất bại
+                try:
+                    logger.info("Connection failed - Restoring Hotspot...")
+                    from src.network.network_status import start_hotspot_if_no_network
+                    await start_hotspot_if_no_network()
+                except Exception as ex:
+                    logger.error(f"Failed to restore hotspot: {ex}")
+                
+                return web.json_response({"success": False, "message": f"❌ Lỗi: {error[:80]}\nĐang bật lại Hotspot..."})
                 
         except subprocess.TimeoutExpired:
-            return web.json_response({"success": False, "message": "⏱️ Timeout"})
+            logger.warning("WiFi Connect Timeout")
+            # FALLBACK: Bật lại Hotspot
+            try:
+                from src.network.network_status import start_hotspot_if_no_network
+                await start_hotspot_if_no_network()
+            except Exception:
+                pass
+            return web.json_response({"success": False, "message": "⏱️ Timeout - Đang bật lại Hotspot..."})
         except Exception as e:
             logger.error(f"WiFi connect error: {e}")
             return web.json_response({"success": False, "message": str(e)})
