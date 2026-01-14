@@ -35,7 +35,7 @@ Thêm vào nginx config:
 ```nginx
 server {
     listen 443 ssl;
-    server_name smartc.0nline.vn;
+    server_name 0nline.vn;
     
     # SSL certificates
     ssl_certificate /path/to/cert.pem;
@@ -70,7 +70,7 @@ Thêm vào `~/.digits/config/config.json`:
 ```json
 {
   "CLOUD": {
-    "SERVER_URL": "wss://smartc.0nline.vn/ws/device",
+    "SERVER_URL": "wss://0nline.vn/ws/device",
     "DEVICE_NAME": "SmartC-Phòng Khách"
   }
 }
@@ -100,7 +100,7 @@ sudo systemctl restart smartc
 
 ## 🖥️ Dashboard
 
-Truy cập `https://smartc.0nline.vn` để vào Dashboard:
+Truy cập `https://0nline.vn` để vào Dashboard:
 
 - Xem danh sách thiết bị online/offline
 - Xem live screenshot
