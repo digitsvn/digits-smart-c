@@ -1022,6 +1022,13 @@
                 const data = await resp.json();
 
                 const container = document.getElementById('imageGallery');
+
+                // Guard against API errors
+                if (!data.images || !Array.isArray(data.images)) {
+                    container.innerHTML = '<div style="text-align:center; grid-column: span 3; color:#aaa;">Chưa có ảnh nào</div>';
+                    return;
+                }
+
                 if (data.images.length === 0) {
                     container.innerHTML = '<div style="text-align:center; grid-column: span 3; color:#aaa;">Chưa có ảnh nào</div>';
                     return;

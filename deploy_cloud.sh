@@ -1,15 +1,13 @@
 #!/bin/bash
 HOST="116.118.2.38"
 USER="root"
-DIR="/root/smartc-cloud"
+DIR="/root/cloud-server"
 
 echo "🚀 Đang deploy lên Cloud Server ($HOST)..."
-echo "⚠️  Bạn sẽ cần nhập mật khẩu: VTKtvEW@z31q"
 
 # 1. Copy file server
 echo "📂 Uploading server files..."
-scp cloud-server/index.js $USER@$HOST:$DIR/
-scp cloud-server/package.json $USER@$HOST:$DIR/
+scp cloud-server/index.js cloud-server/db.js cloud-server/package.json $USER@$HOST:$DIR/
 
 # 2. Copy dashboard
 echo "📂 Uploading dashboard..."
@@ -19,4 +17,4 @@ scp -r cloud-server/dashboard $USER@$HOST:$DIR/
 echo "🔄 Updating dependencies and restarting service..."
 ssh $USER@$HOST "cd $DIR && npm install && pm2 restart smartc-cloud"
 
-echo "✅ Deploy hoàn tất! Hãy kiểm tra lại trên 0nline.vn"
+echo "✅ Deploy hoàn tất!"
