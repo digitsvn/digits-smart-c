@@ -224,7 +224,6 @@ if __name__ == "__main__":
         else:
             # Chế độ CLI sử dụng vòng lặp sự kiện asyncio tiêu chuẩn
             exit_code = asyncio.run(
-            exit_code = asyncio.run(
                 start_app(args.mode, args.protocol, args.skip_activation, args.no_audio)
             )
 
