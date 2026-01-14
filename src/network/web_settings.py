@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -1419,7 +1420,7 @@ class WebSettingsServer:
                 images.extend([{
                     "name": p.name,
                     "path": str(p.relative_to(get_project_root())),
-                    "url": f"/assets/images/slideshow/{p.name}"
+                    "url": f"/assets/images/slideshow/{urllib.parse.quote(p.name)}"
                 } for p in img_dir.glob(ext)])
         return web.json_response({"images": images})
 
