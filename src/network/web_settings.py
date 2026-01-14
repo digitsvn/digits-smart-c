@@ -1322,6 +1322,77 @@ class WebSettingsServer:
         except Exception as e:
             logger.error(f"Save video failed: {e}", exc_info=True)
             return web.json_response({"success": False, "message": str(e)})
+
+    async def _handle_upload_image(self, request):
+        """Upload image file cho slideshow."""
+        try:
+            reader = await request.multipart()
+            field = await reader.next()
+            
+            if field.name != 'image':
+                return web.json_response({"success": False, "message": "Không tìm thấy field image"})
+            
+            filename = field.filename
+            if not filename:
+                return web.json_response({"success": False, "message": "Tên file không hợp lệ"})
+            
+            # Sanitize filename
+            import re
+            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+            
+            # Save to assets/images/slideshow
+            img_dir = get_project_root() / "assets" / "images" / "slideshow"
+            img_dir.mkdir(parents=True, exist_ok=True)
+            
+            file_path = img_dir / safe_filename
+            
+            # Write file
+            with open(file_path, 'wb') as f:
+                while True:
+                    chunk = await field.read_chunk()
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            
+            relative_path = f"assets/images/slideshow/{safe_filename}"
+            logger.info(f"Uploaded image: {relative_path}")
+            
+            return web.json_response({
+                "success": True, 
+                "message": f"Upload thành công!",
+                "filename": safe_filename,
+                "path": relative_path
+            })
+        except Exception as e:
+            logger.error(f"Upload image failed: {e}")
+            return web.json_response({"success": False, "message": str(e)})
+
+    async def _handle_list_images(self, request):
+        """Liệt kê danh sách ảnh slideshow."""
+        img_dir = get_project_root() / "assets" / "images" / "slideshow"
+        images = []
+        if img_dir.exists():
+            for ext in ['*.jpg', '*.jpeg', '*.png', '*.gif', '*.webp']:
+                images.extend([{
+                    "name": p.name,
+                    "path": str(p.relative_to(get_project_root()))
+                } for p in img_dir.glob(ext)])
+        return web.json_response({"images": images})
+
+    async def _handle_slide_set(self, request):
+        """Cài đặt slideshow."""
+        try:
+            data = await request.json()
+            interval = int(data.get("interval", 5000))
+            
+            self.config.update_config("DISPLAY.BACKGROUND_MODE", "slide")
+            self.config.update_config("DISPLAY.SLIDE_INTERVAL", interval)
+            
+            self._reload_video()
+            
+            return web.json_response({"success": True, "message": "Đã lưu cài đặt Slideshow"})
+        except Exception as e:
+            return web.json_response({"success": False, "message": str(e)})
     
     async def _handle_upload(self, request):
         """Upload video file."""
