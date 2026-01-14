@@ -103,7 +103,88 @@ class CloudAgent:
             'set_wakeword': self._cmd_set_wakeword,
             'wifi_connect': self._cmd_wifi_connect,
             'set_system': self._cmd_set_system,
+            'set_background_mode': self._cmd_set_background_mode,
         }
+
+    async def _cmd_set_background_mode(self, params: dict):
+        """
+        Cấu hình background: Video hoặc Slideshow.
+        Params:
+            type: 'video' | 'slide'
+            urls: list[str] (nếu slide)
+            interval: int (ms)
+            video_path: str (nếu video/legacy)
+        """
+        bg_type = params.get("type", "video")
+        
+        try:
+            from src.application import Application
+            app = Application._instance
+            ui_plugin = app.plugins.get_plugin("ui") if app and hasattr(app, 'plugins') else None
+            
+            if bg_type == "slide":
+                urls = params.get("urls", [])
+                interval = params.get("interval", 5000)
+                
+                # Download images
+                slide_dir = get_project_root() / "assets" / "slides"
+                slide_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Clear old slides? Maybe keep them.
+                # For now let's just download new ones.
+                local_paths = []
+                
+                for url in urls:
+                    try:
+                        filename = url.split("/")[-1]
+                        local_path = slide_dir / filename
+                        
+                        # Download if not exists
+                        # Use subprocess wget for simplicity and valid async simulation
+                        if not local_path.exists():
+                            logger.info(f"Downloading slide: {url}")
+                            subprocess.run(
+                                ["wget", "-q", "-O", str(local_path), url],
+                                check=True,
+                                timeout=30
+                            )
+                        local_paths.append(str(local_path))
+                    except Exception as e:
+                        logger.error(f"Failed to download slide {url}: {e}")
+
+                if ui_plugin:
+                    # Update config
+                    app.config.config['display']['background_mode'] = 'slide'
+                    app.config.config['display']['slide_images'] = local_paths
+                    app.config.config['display']['slide_interval'] = interval
+                    app.config.save_config()
+                    
+                    # Notify UI
+                    # We need to implement set_slideshow in GuiPlugin/Display
+                    if hasattr(ui_plugin.display, 'set_slideshow'):
+                        ui_plugin.display.set_slideshow(local_paths, interval)
+                        
+                return {"status": "ok", "message": f"Slideshow set with {len(local_paths)} images"}
+
+            else:
+                # Video mode logic (existing or new)
+                video_path = params.get("video_path")
+                if not video_path and 'urls' in params and len(params['urls']) > 0:
+                     video_path = params['urls'][0] # Fallback if user selected video url logic
+                     
+                if video_path and ui_plugin:
+                    app.config.config['display']['background_mode'] = 'video'
+                    app.config.config['display']['video_path'] = video_path
+                    app.config.save_config()
+                    
+                    if hasattr(ui_plugin.display, 'set_video_background'):
+                        ui_plugin.display.set_video_background(video_path)
+                        
+                return {"status": "ok", "message": "Video set"}
+                
+        except Exception as e:
+            logger.error(f"Set background error: {e}")
+            return {"status": "error", "message": str(e)}
     
     async def connect(self) -> bool:
         """Kết nối tới Cloud Server."""

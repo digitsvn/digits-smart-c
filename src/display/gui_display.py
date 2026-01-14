@@ -63,6 +63,12 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         self.current_status = ""
         self.is_connected = True
 
+        # Slideshow management
+        self._slide_images = []
+        self._slide_index = 0
+        self._slide_timer = QTimer(self)
+        self._slide_timer.timeout.connect(self._next_slide)
+
         # Trạng thái kéo cửa sổ
         self._dragging = False
         self._drag_position = None
@@ -950,13 +956,64 @@ class GuiDisplay(BaseDisplay, QObject, metaclass=CombinedMeta):
         Xử lý sự kiện đóng cửa sổ.
         """
         # Nếu khay hệ thống khả dụng, thu nhỏ vào khay
+    # Nếu khay hệ thống khả dụng, thu nhỏ vào khay
         if self.system_tray and (
             getattr(self.system_tray, "is_available", lambda: False)()
             or getattr(self.system_tray, "is_visible", lambda: False)()
         ):
             self.logger.info("Đóng cửa sổ: Thu nhỏ vào khay")
-            QTimer.singleShot(0, self.root.hide)
+            if self.root:
+                self.root.hide()
             event.ignore()
         else:
-            QTimer.singleShot(0, self._quit_application)
+            # Ngược lại, đóng ứng dụng
+            self.logger.info("Đóng cửa sổ: Thoát ứng dụng")
+            self._on_close_clicked()
             event.accept()
+
+    def set_video_background(self, path: str):
+        """Set video background and stop slideshow."""
+        if self._slide_timer.isActive():
+            self._slide_timer.stop()
+        
+        self.display_model.backgroundMode = "video"
+        self.set_video_file(path)
+
+    def set_slideshow(self, images: list, interval: int = 5000):
+        """
+        Kích hoạt chế độ slideshow ảnh.
+        Args:
+            images: List đường dẫn ảnh (local paths)
+            interval: Thời gian chuyển ảnh (ms)
+        """
+        if not images:
+            return
+            
+        self._slide_images = images
+        self._slide_index = 0
+        self._slide_timer.setInterval(interval)
+        
+        self.display_model.backgroundMode = "slide"
+        
+        # Show first image immediately
+        self._next_slide()
+        
+        # Start timer
+        self._slide_timer.start()
+        
+    def _next_slide(self):
+        """Show next image in slide."""
+        if not self._slide_images:
+            return
+            
+        # Get current image
+        img = self._slide_images[self._slide_index]
+        
+        # Update model
+        # Use QUrl.fromLocalFile to ensure correct protocol
+        from PyQt5.QtCore import QUrl
+        url = QUrl.fromLocalFile(str(img)).toString()
+        self.display_model.currentSlideUrl = url
+        
+        # Increment index
+        self._slide_index = (self._slide_index + 1) % len(self._slide_images)

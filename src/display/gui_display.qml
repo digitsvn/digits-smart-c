@@ -40,11 +40,14 @@ Rectangle {
             return path.indexOf(".webp") !== -1 || path.indexOf(".gif") !== -1
         }
         
+        // Helper: Check mode
+        property string bgMode: displayModel ? displayModel.backgroundMode : "video"
+
         // AnimatedImage cho WebP/GIF (loop mượt, không giật)
         AnimatedImage {
             id: animatedBg
             anchors.fill: parent
-            visible: bgLayer.isAnimatedImage && displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
+            visible: bgLayer.bgMode === "video" && bgLayer.isAnimatedImage && displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
             source: visible ? displayModel.videoFilePath : ""
             fillMode: Image.Stretch
             playing: true
@@ -58,17 +61,15 @@ Rectangle {
         }
         
         // Video cho MP4 (có thể giật khi loop)
-        // KHÔNG dùng audio - để dành HDMI cho AI
         Video {
             id: videoPlayer
             anchors.fill: parent
-            visible: !bgLayer.isAnimatedImage && displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
+            visible: bgLayer.bgMode === "video" && !bgLayer.isAnimatedImage && displayModel && displayModel.videoFilePath && displayModel.videoFilePath.length > 0
             source: visible ? displayModel.videoFilePath : ""
             fillMode: VideoOutput.Stretch
             autoPlay: true
             loops: MediaPlayer.Infinite
             
-            // Tắt hoàn toàn audio - để HDMI cho AI output
             muted: true
             volume: 0
             
@@ -86,11 +87,30 @@ Rectangle {
             }
         }
 
+        // Slideshow Image
+        Image {
+            id: slideImage
+            anchors.fill: parent
+            visible: bgLayer.bgMode === "slide" && displayModel && displayModel.currentSlideUrl && displayModel.currentSlideUrl.length > 0
+            source: visible ? displayModel.currentSlideUrl : ""
+            fillMode: Image.PreserveAspectCrop
+            cache: false // Force reload if logic needs it, though URL usually is unique enough
+            
+            // Fade Transition for smooth slide
+            Behavior on source {
+                SequentialAnimation {
+                    PropertyAnimation { target: slideImage; property: "opacity"; to: 0; duration: 250 }
+                    PropertyAction { target: slideImage; property: "source" }
+                    PropertyAnimation { target: slideImage; property: "opacity"; to: 1; duration: 500 }
+                }
+            }
+        }
+
         // Emotion Loader (when video/animation is not active)
         Loader {
             id: emotionLoader
             anchors.fill: parent
-            visible: !videoPlayer.visible && !animatedBg.visible
+            visible: !videoPlayer.visible && !animatedBg.visible && !slideImage.visible
 
             sourceComponent: {
                 var path = displayModel ? displayModel.emotionPath : ""

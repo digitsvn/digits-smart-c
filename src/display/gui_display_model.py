@@ -22,6 +22,10 @@ class GuiDisplayModel(QObject):
     videoFrameUrlChanged = pyqtSignal()
     videoFilePathChanged = pyqtSignal()  # Path cho native video player
     
+    # Slideshow signals
+    backgroundModeChanged = pyqtSignal() # "video", "slide"
+    currentSlideUrlChanged = pyqtSignal()
+    
     # Network Info signals
     networkInfoTextChanged = pyqtSignal()
     qrCodePathChanged = pyqtSignal()
@@ -41,20 +45,24 @@ class GuiDisplayModel(QObject):
 
         # Thuộc tính riêng tư
         self._status_text = "Trạng thái: Chưa kết nối"
-        self._emotion_path = ""  # Đường dẫn tài nguyên biểu cảm (GIF/hình ảnh) hoặc ký tự emoji
+        self._emotion_path = ""
         self._tts_text = "Đang chờ"
         self._user_text = ""
-        self._button_text = "Bắt đầu đối thoại"  # Văn bản nút chế độ tự động
-        self._mode_text = "Đối thoại thủ công"  # Văn bản nút chuyển đổi chế độ
-        self._auto_mode = False  # Có đang ở chế độ tự động hay không
+        self._button_text = "Bắt đầu đối thoại"
+        self._mode_text = "Đối thoại thủ công"
+        self._auto_mode = False
         self._is_connected = False
-        self._video_frame_url = ""  # URL file:///... (kèm cache-bust query) cho khung video
-        self._video_file_path = ""  # Path file video để native player phát (hardware accelerated)
+        self._video_frame_url = ""
+        self._video_file_path = ""
+        
+        # Slideshow properties
+        self._background_mode = "video" # "video" or "slide"
+        self._current_slide_url = ""
         
         # Network info properties
-        self._network_info_text = ""  # Text hiển thị IP/WiFi info
-        self._qr_code_path = ""  # Đường dẫn QR code image
-        self._network_mode = "disconnected"  # "connected", "hotspot", "disconnected"
+        self._network_info_text = ""
+        self._qr_code_path = ""
+        self._network_mode = "disconnected"
 
     # Thuộc tính văn bản trạng thái
     @pyqtProperty(str, notify=statusTextChanged)
@@ -246,6 +254,26 @@ class GuiDisplayModel(QObject):
         if self._network_mode != value:
             self._network_mode = value
             self.networkModeChanged.emit()
+
+    @pyqtProperty(str, notify=backgroundModeChanged)
+    def backgroundMode(self):
+        return self._background_mode
+
+    @backgroundMode.setter
+    def backgroundMode(self, value):
+        if self._background_mode != value:
+            self._background_mode = value
+            self.backgroundModeChanged.emit()
+
+    @pyqtProperty(str, notify=currentSlideUrlChanged)
+    def currentSlideUrl(self):
+        return self._current_slide_url
+
+    @currentSlideUrl.setter
+    def currentSlideUrl(self, value):
+        if self._current_slide_url != value:
+            self._current_slide_url = value
+            self.currentSlideUrlChanged.emit()
 
     def update_network_info(self, ip: str, mode: str, qr_path: str = ""):
         """

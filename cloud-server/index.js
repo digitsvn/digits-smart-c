@@ -15,12 +15,44 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
+const fs = require('fs');
+const multer = require('multer');
+
 // Database
 const db = require('./db');
 
 // Configuration
 const PORT = process.env.PORT || 3000;
 const API_SECRET = process.env.API_SECRET || 'smartc-secret-key-change-me';
+
+// Configure Multer for image uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, 'uploads', 'images');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        // Keep original extension, add timestamp to prevent dupes
+        const ext = path.extname(file.originalname);
+        const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
+        cb(null, `${name}_${Date.now()}${ext}`);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only images are allowed'));
+        }
+    }
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -38,6 +70,7 @@ const deviceConnections = new Map(); // deviceId -> ws connection
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // For screenshot uploads
 app.use(express.static(path.join(__dirname, 'dashboard')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Serve uploaded files
 
 // Auth Configuration
 const USERS = {
@@ -354,7 +387,7 @@ app.post('/api/devices/:id/videos', (req, res) => {
     res.json({ message: 'Videos requested' });
 });
 
-// Set video background
+// Set video background (Legacy)
 app.post('/api/devices/:id/video/set', (req, res) => {
     const deviceId = req.params.id;
     const ws = deviceConnections.get(deviceId);
@@ -373,6 +406,75 @@ app.post('/api/devices/:id/video/set', (req, res) => {
 
     res.json({ message: 'Video setting sent' });
 });
+
+// Set Slide (New)
+app.post('/api/devices/:id/slide/set', (req, res) => {
+    const deviceId = req.params.id;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    const { type, urls, interval } = req.body; // type: 'video' | 'slide'
+
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: 'set_background_mode',
+        params: { type, urls: urls || [], interval: interval || 5000 }
+    }));
+
+    res.json({ message: 'Background settings sent' });
+});
+
+// Upload image
+app.post('/api/uploads', auth, upload.single('image'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Construct full URL
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const url = `${protocol}://${host}/uploads/images/${req.file.filename}`;
+
+    res.json({
+        success: true,
+        message: 'Upload successful',
+        url: url,
+        filename: req.file.filename
+    });
+});
+
+// List uploaded images
+app.get('/api/images', auth, (req, res) => {
+    const dir = path.join(__dirname, 'uploads', 'images');
+
+    if (!fs.existsSync(dir)) {
+        return res.json({ images: [] });
+    }
+
+    fs.readdir(dir, (err, files) => {
+        if (err) {
+            return res.status(500).json({ error: 'Failed to list images' });
+        }
+
+        const protocol = req.protocol;
+        const host = req.get('host');
+
+        const images = files
+            .filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file))
+            .map(file => ({
+                filename: file,
+                url: `${protocol}://${host}/uploads/images/${file}`,
+                created: fs.statSync(path.join(dir, file)).birthtime
+            }))
+            .sort((a, b) => b.created - a.created);
+
+        res.json({ images });
+    });
+});
+
 
 // Get WiFi networks
 app.post('/api/devices/:id/wifi/scan', (req, res) => {
