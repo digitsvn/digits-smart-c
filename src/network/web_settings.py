@@ -1198,7 +1198,7 @@ DASHBOARD_HTML = """
                 showStatus('systemStatus', data.success ? 'success' : 'error', data.message);
                 
                 if (data.success && data.message.includes("Đã cập nhật")) {
-                    if (confirm(data.message + "\nBạn có muốn Restart App ngay bây giờ?")) {
+                    if (confirm(data.message + "\\nBạn có muốn Restart App ngay bây giờ?")) {
                         restartApp();
                     }
                 } else {
