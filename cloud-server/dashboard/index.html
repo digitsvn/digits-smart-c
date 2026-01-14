@@ -707,9 +707,28 @@
                         <div class="action-buttons">
                             <button class="btn btn-secondary" onclick="deviceAction('restart')">🔄 Restart App</button>
                             <button class="btn btn-secondary" onclick="deviceAction('update')">📥 Git Pull</button>
+                            <button class="btn btn-info" onclick="viewLogs()">📜 Xem Logs</button>
                             <button class="btn btn-danger" onclick="deviceAction('reboot')">⚡ Reboot Pi</button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Modal -->
+        <div class="modal" id="logModal">
+            <div class="modal-content"
+                style="width: 80%; max-width: 900px; height: 80vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h2>📜 System Logs</h2>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-secondary" onclick="refreshLogs()">🔄 Refresh</button>
+                        <button class="modal-close" onclick="closeLogs()">×</button>
+                    </div>
+                </div>
+                <div class="modal-body" style="flex: 1; overflow: hidden; padding: 0;">
+                    <pre id="logContent"
+                        style="width:100%; height:100%; background:#1e1e1e; color:#d4d4d4; padding:15px; overflow:auto; margin:0; font-family: monospace; font-size: 13px; border:none;"></pre>
                 </div>
             </div>
         </div>
@@ -1151,6 +1170,79 @@
 
             await sendCommand(selectedDevice, 'wifi_connect', { ssid, password });
             showToast('Đang kết nối WiFi...');
+        }
+
+        // ========== Log Functions ==========
+        function viewLogs() {
+            document.getElementById('logModal').classList.add('active');
+            refreshLogs();
+        }
+
+        function closeLogs() {
+            document.getElementById('logModal').classList.remove('active');
+        }
+
+        async function refreshLogs() {
+            if (!selectedDevice) return;
+            document.getElementById('logContent').textContent = "Loading logs...";
+
+            try {
+                // Send command to device to read logs
+                const resp = await fetch(`${API_BASE}/api/devices/${selectedDevice.id}/command`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token
+                    },
+                    body: JSON.stringify({
+                        type: 'get_logs',
+                        data: { lines: 200 }
+                    })
+                });
+
+                // Note: This is async. We need to wait for result.
+                // For now, simpler implementation: Poll logs from DB logs table?
+                // OR: Device sends 'log_content' message back.
+
+                // Let's rely on command result. Cloud Server waits for result? 
+                // Currently Cloud Server stores command as pending.
+
+                // Temporary: Show loading command.
+                // Ideally we should use persistent connection to receive result.
+
+                // Workaround: Poll for command result
+                const cmdData = await resp.json();
+                if (cmdData.commandId) {
+                    pollCommandResult(cmdData.commandId);
+                } else {
+                    document.getElementById('logContent').textContent = "Failed to send command";
+                }
+
+            } catch (e) {
+                document.getElementById('logContent').textContent = "Error: " + e.message;
+            }
+        }
+
+        async function pollCommandResult(cmdId) {
+            let retries = 10;
+            while (retries > 0) {
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const resp = await fetch(`${API_BASE}/api/commands/${cmdId}`, {
+                        headers: { 'Authorization': token }
+                    });
+                    const cmd = await resp.json();
+                    if (cmd.status === 'completed' && cmd.result) {
+                        const res = typeof cmd.result === 'string' ? JSON.parse(cmd.result) : cmd.result;
+                        document.getElementById('logContent').textContent = res.logs || res.message || JSON.stringify(res, null, 2);
+                        return;
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+                retries--;
+            }
+            document.getElementById('logContent').textContent = "Timeout waiting for logs.";
         }
 
         async function saveSystem() {

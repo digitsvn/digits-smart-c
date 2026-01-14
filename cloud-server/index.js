@@ -198,8 +198,18 @@ wss.on('connection', (ws, req) => {
 
                 case 'command_result':
                     // Result of command execution
-                    console.log(`📋 Command result from ${deviceId}:`, data.result);
+                    console.log(`📋 Command result from ${deviceId}:`, data.command);
                     db.addLog(deviceId, 'command', `Command result: ${data.command}`, data.result);
+
+                    if (data.command_id) {
+                        try {
+                            const resultStr = JSON.stringify(data.result);
+                            db.db.prepare('UPDATE commands SET status = ?, result = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                                .run('completed', resultStr, data.command_id);
+                        } catch (e) {
+                            console.error('Failed to update command status:', e);
+                        }
+                    }
                     break;
 
                 default:
@@ -405,6 +415,42 @@ app.post('/api/devices/:id/video/set', (req, res) => {
     }));
 
     res.json({ message: 'Video setting sent' });
+});
+
+// Generic Command Endpoint
+app.post('/api/devices/:id/command', auth, (req, res) => {
+    const deviceId = req.params.id;
+    const { type, data } = req.body;
+    const ws = deviceConnections.get(deviceId);
+
+    if (!ws) {
+        return res.status(404).json({ error: 'Device not connected' });
+    }
+
+    // Create command record
+    const result = db.addCommand(deviceId, type, data);
+    const commandId = result.lastInsertRowid;
+
+    // Send to device
+    ws.send(JSON.stringify({
+        type: 'command',
+        command: type,
+        params: data,
+        command_id: commandId
+    }));
+
+    res.json({ success: true, commandId: commandId });
+});
+
+// Check Command Status
+app.get('/api/commands/:id', auth, (req, res) => {
+    const cmdId = req.params.id;
+    const cmd = db.db.prepare('SELECT * FROM commands WHERE id = ?').get(cmdId);
+
+    if (!cmd) {
+        return res.status(404).json({ error: 'Command not found' });
+    }
+    res.json(cmd);
 });
 
 // Set Slide (New)

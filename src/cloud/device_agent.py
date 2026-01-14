@@ -103,6 +103,7 @@ class CloudAgent:
             'set_wakeword': self._cmd_set_wakeword,
             'wifi_connect': self._cmd_wifi_connect,
             'set_system': self._cmd_set_system,
+            'get_logs': self._cmd_get_logs,
             'set_background_mode': self._cmd_set_background_mode,
         }
 
@@ -610,7 +611,37 @@ class CloudAgent:
             return {"status": "error", "message": str(e)}
         
         return {"status": "error", "message": "App not available"}
-    
+
+    async def _cmd_get_logs(self, params: dict):
+        """Lấy logs từ file."""
+        try:
+            from src.utils.resource_finder import get_project_root
+            lines = int(params.get("lines", 100))
+            log_file = get_project_root() / "logs" / "app.log"
+            
+            if not log_file.exists():
+                return {"status": "error", "message": "Log file not found"}
+                
+            # Read last N lines
+            # Use 'tail' command for efficiency on Linux
+            try:
+                result = subprocess.run(
+                    ["tail", "-n", str(lines), str(log_file)],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    return {"status": "ok", "logs": result.stdout}
+                else:
+                    return {"status": "error", "message": f"Tail failed: {result.stderr}"}
+            except Exception:
+                # Fallback python read
+                with open(log_file, "r") as f:
+                    content = f.readlines()
+                    return {"status": "ok", "logs": "".join(content[-lines:])}
+                    
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     # ========== Main Loop ==========
     
     async def _handle_messages(self):
@@ -630,14 +661,18 @@ class CloudAgent:
                     elif msg_type == 'command':
                         command = data.get('command')
                         params = data.get('params', {})
+                        command_id = data.get('command_id')
                         
                         if command in self.command_handlers:
                             result = await self.command_handlers[command](params)
-                            await self._send({
+                            response = {
                                 'type': 'command_result',
                                 'command': command,
                                 'result': result
-                            })
+                            }
+                            if command_id:
+                                response['command_id'] = command_id
+                            await self._send(response)
                         else:
                             logger.warning(f"Unknown command: {command}")
                             
