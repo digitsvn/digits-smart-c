@@ -722,7 +722,7 @@ class WiFiSetupService:
             return False
     
     async def _update_gui_with_new_ip(self):
-        """Update GUI với IP mới sau khi kết nối WiFi thành công"""
+        """Update GUI với IP mới sau khi kết nối WiFi thành công và restart services"""
         try:
             from src.network.network_status import get_current_ip, generate_qr_code
             from src.utils.resource_finder import get_project_root
@@ -749,6 +749,12 @@ class WiFiSetupService:
             if app:
                 await app._update_gui_network_info(ip, "connected", qr_path_str)
                 logger.info(f"Đã update GUI với IP mới: {ip}")
+                
+                # Trigger WebSocket reconnect nếu chưa connected
+                if not app.is_audio_channel_opened():
+                    logger.info("Triggering WebSocket reconnect sau khi có mạng...")
+                    app.spawn(app._auto_connect_protocol(), "post-wifi-connect")
+                    
         except Exception as e:
             logger.error(f"Lỗi update GUI với IP mới: {e}")
     

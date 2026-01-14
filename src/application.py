@@ -600,6 +600,12 @@ class Application:
                     
                     await self._update_gui_network_info(current_ip or "", current_mode, qr_path_str)
                     
+                    # Trigger WebSocket reconnect khi chuyển sang connected
+                    if current_mode == "connected" and last_mode != "connected":
+                        if not self.is_audio_channel_opened():
+                            logger.info("Network connected - triggering WebSocket reconnect...")
+                            self.spawn(self._auto_connect_protocol(), "network-reconnect")
+                    
                     last_mode = current_mode
                     last_ip = current_ip
                     
