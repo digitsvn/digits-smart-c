@@ -1454,9 +1454,31 @@ class WebSettingsServer:
         try:
             data = await request.json()
             interval = int(data.get("interval", 5000))
+            images = data.get("images", [])
             
+            # Convert URLs back to paths if needed, or assume they are paths/names
+            # Frontend sends URLs like /assets/images/slideshow/name.jpg
+            # We need to extract filename or store full path?
+            # GUI Display expects paths.
+            
+            # Clean up URLs to Paths
+            # Input: /assets/images/slideshow/filename.jpg (or encoded)
+            # Output: assets/images/slideshow/filename.jpg
+            
+            clean_images = []
+            for img in images:
+                if "/assets/images/slideshow/" in img:
+                    # Extract filename (decode URL first)
+                    import urllib.parse
+                    name = urllib.parse.unquote(img.split("/assets/images/slideshow/")[-1])
+                    path = f"assets/images/slideshow/{name}"
+                    clean_images.append(path)
+                else:
+                    clean_images.append(img)
+
             self.config.update_config("DISPLAY.BACKGROUND_MODE", "slide")
             self.config.update_config("DISPLAY.SLIDE_INTERVAL", interval)
+            self.config.update_config("DISPLAY.SLIDE_IMAGES", clean_images)
             
             self._reload_video()
             

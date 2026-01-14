@@ -683,32 +683,26 @@
                 <!-- System Tab -->
                 <div class="tab-content" id="tab-system">
                     <div class="config-card">
-                        <h3>🌐 Cấu hình Hệ thống</h3>
-                        <div class="form-group">
-                            <label>Ngôn ngữ:</label>
-                            <select id="language">
-                                <option value="vi">🇻🇳 Tiếng Việt</option>
-                                <option value="en">🇺🇸 English</option>
-                                <option value="zh">🇨🇳 中文</option>
-                            </select>
+                        <h3>🔧 Hành động Thiết bị</h3>
+                        <div class="action-buttons"
+                            style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-top: 20px;">
+                            <button class="btn btn-secondary" onclick="deviceAction('restart')"
+                                style="min-width: 160px; height: 50px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                🔄 <span>Restart App</span>
+                            </button>
+                            <button class="btn btn-secondary" onclick="deviceAction('update')"
+                                style="min-width: 160px; height: 50px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                📥 <span>Git Pull</span>
+                            </button>
+                            <button class="btn btn-danger" onclick="deviceAction('reboot')"
+                                style="min-width: 160px; height: 50px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                ⚡ <span>Reboot Pi</span>
+                            </button>
                         </div>
-                        <div class="form-group" style="display: none;">
-                            <label>OTA Server URL:</label>
-                            <input type="text" id="otaUrl" placeholder="https://vimate.vn/api/v1/ota">
-                        </div>
-                        <div class="form-group">
-                            <label>Cloud Management URL:</label>
-                            <input type="text" id="wsUrl" placeholder="ws://0nline.vn/ws/device">
-                        </div>
-                        <button class="btn btn-primary" onclick="saveSystem()">💾 Lưu Hệ thống</button>
-                    </div>
-                    <div class="config-card">
-                        <h3>🔧 Hành động</h3>
-                        <div class="action-buttons">
-                            <button class="btn btn-secondary" onclick="deviceAction('restart')">🔄 Restart App</button>
-                            <button class="btn btn-secondary" onclick="deviceAction('update')">📥 Git Pull</button>
-                            <button class="btn btn-info" onclick="viewLogs()">📜 Xem Logs</button>
-                            <button class="btn btn-danger" onclick="deviceAction('reboot')">⚡ Reboot Pi</button>
+                        <div style="margin-top: 30px; text-align: center;">
+                            <button class="btn btn-info" onclick="viewLogs()" style="min-width: 200px; padding: 12px;">
+                                📜 Xem System Logs
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1243,17 +1237,6 @@
                 retries--;
             }
             document.getElementById('logContent').textContent = "Timeout waiting for logs.";
-        }
-
-        async function saveSystem() {
-            const settings = {
-                language: document.getElementById('language').value,
-                ota_url: document.getElementById('otaUrl').value,
-                ws_url: document.getElementById('wsUrl').value
-            };
-
-            await sendCommand(selectedDevice, 'set_system', settings);
-            showToast('Đã gửi cấu hình hệ thống!');
         }
 
         // ========== Init ==========
