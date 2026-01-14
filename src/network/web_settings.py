@@ -406,23 +406,20 @@ DASHBOARD_HTML = """
     <script>
         // Tab switching
         function openTab(tabName) {
+            // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            // Show selected tab
+            const tab = document.getElementById('tab-' + tabName);
+            if(tab) tab.classList.add('active');
+            
+            // Highlight button
             document.querySelectorAll('.tab-btn').forEach(b => {
                 b.classList.remove('active');
-                if (b.textContent.includes(tabName === 'bg' ? 'Background' : 
-                                         tabName === 'display' ? 'Hiển thị' :
-                                         tabName === 'wifi' ? 'WiFi' : 'Khác')) {
+                // Check if button calls this tab
+                if (b.getAttribute('onclick').includes(`'${tabName}'`)) {
                     b.classList.add('active');
                 }
             });
-            document.getElementById('tab-' + tabName).classList.add('active');
-            
-            // Highlight current tab button explicitly
-            const btns = document.querySelectorAll('.tab-btn');
-            if(tabName == 'bg') btns[0].classList.add('active');
-            if(tabName == 'display') btns[1].classList.add('active');
-            if(tabName == 'wifi') btns[2].classList.add('active');
-            if(tabName == 'other') btns[3].classList.add('active');
         }
 
         function toggleBgMode() {
@@ -535,10 +532,11 @@ DASHBOARD_HTML = """
                 images.forEach(img => {
                     const div = document.createElement('div');
                     div.className = 'gallery-item';
+                    const safeName = img.name.replace(/'/g, "\\'");
                     div.innerHTML = `
                         <img src="${img.url}" onclick="toggleImageSelection(this.parentElement, '${img.url}')">
                         <div class="check-icon">✓</div>
-                        <button class="delete-btn" onclick="deleteImage('${img.name}', event)" title="Xóa ảnh">🗑️</button>
+                        <button class="delete-btn" onclick="deleteImage('${safeName}', event)" title="Xóa ảnh">🗑️</button>
                     `;
                     gallery.appendChild(div);
                 });
