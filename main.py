@@ -154,7 +154,7 @@ async def start_app(mode: str, protocol: str, skip_activation: bool, no_audio: b
 
     # Tạo và khởi chạy ứng dụng
     app = Application.get_instance()
-    return await app.run(mode=mode, protocol=protocol)
+    return await app.run(mode=mode, protocol=protocol, no_audio=no_audio)
 
 
 if __name__ == "__main__":
